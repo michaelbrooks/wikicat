@@ -7,6 +7,8 @@ for processing RDF. This includes an N-Triples parser:
 https://github.com/RDFLib/rdflib/blob/master/rdflib/plugins/parsers/ntriples.py
 """
 
+__all__ = ['NTripleParser', 'validate']
+
 import re
 
 # a no-op for Python 2
@@ -89,29 +91,29 @@ class NTripleParser(object):
     def __init__(self, file):
         self.iterator = file.__iter__()
 
-    def parseline(self):
-        self.eat(r_wspace)
+    def _parseline(self):
+        self._eat(r_wspace)
         if (not self.line) or self.line.startswith(b('#')):
             return  # The line is empty or a comment
 
-        subject = self.subject()
-        self.eat(r_wspaces)
+        subject = self._subject()
+        self._eat(r_wspaces)
 
-        predicate = self.predicate()
-        self.eat(r_wspaces)
+        predicate = self._predicate()
+        self._eat(r_wspaces)
 
-        object = self.object()
-        self.eat(r_tail)
+        object = self._object()
+        self._eat(r_tail)
 
         if self.line:
             raise ParseError("Trailing garbage %s" % repr(self.line))
 
         return subject, predicate, object
 
-    def peek(self, token):
+    def _peek(self, token):
         return self.line.startswith(token)
 
-    def eat(self, pattern):
+    def _eat(self, pattern):
         m = pattern.match(self.line)
         if not m:  # @@ Why can't we get the original pattern?
             # print(dir(pattern))
@@ -120,28 +122,28 @@ class NTripleParser(object):
         self.line = self.line[m.end():]
         return m
 
-    def subject(self):
+    def _subject(self):
         # @@ Consider using dictionary cases
-        subj = self.uriref() or self.nodeid()
+        subj = self._uriref() or self._nodeid()
         if not subj:
             raise ParseError("Subject must be uriref or nodeID")
         return subj
 
-    def predicate(self):
-        pred = self.uriref()
+    def _predicate(self):
+        pred = self._uriref()
         if not pred:
             raise ParseError("Predicate must be uriref")
         return pred
 
-    def object(self):
-        objt = self.uriref() or self.nodeid() or self.literal()
+    def _object(self):
+        objt = self._uriref() or self._nodeid() or self._literal()
         if objt is False:
             raise ParseError("Unrecognised object type")
         return objt
 
-    def uriref(self):
-        if self.peek(b('<')):
-            uri = self.eat(r_uriref).group(1)
+    def _uriref(self):
+        if self._peek(b('<')):
+            uri = self._eat(r_uriref).group(1)
             uri = unquote(uri)
             uri = uriquote(uri)
 
@@ -150,10 +152,10 @@ class NTripleParser(object):
 
         return False
 
-    def nodeid(self):
-        if self.peek(b('_')):
+    def _nodeid(self):
+        if self._peek(b('_')):
             # Fix for https://github.com/RDFLib/rdflib/issues/204
-            bnode_id = self.eat(r_nodeid).group(1).decode()
+            bnode_id = self._eat(r_nodeid).group(1).decode()
 
             # rdflib does some other stuff here to build a bNode object
             # we just want the string
@@ -162,9 +164,9 @@ class NTripleParser(object):
 
         return False
 
-    def literal(self):
-        if self.peek(b('"')):
-            lit, lang, dtype = self.eat(r_literal).groups()
+    def _literal(self):
+        if self._peek(b('"')):
+            lit, lang, dtype = self._eat(r_literal).groups()
             if lang:
                 lang = lang.decode()
             else:
@@ -196,14 +198,14 @@ class NTripleParser(object):
             # this will raise a StopException if there are no more lines
             # remove the trailing newline
             self.line = self.iterator.next().strip()
-            triple = self.parseline()
+            triple = self._parseline()
 
         return triple
 
     def __iter__(self):
         return self
 
-def _test_stream():
+def _test():
     import nose.tools as nt
 
     import cStringIO as StringIO
@@ -271,12 +273,12 @@ def _test_stream():
 
 
 if __name__ == "__main__":
-    import sys
+    import logging
+    logging.basicConfig(level=logging.INFO)
 
     try:
-        _test_stream()
-        print "Tests Passed"
+        _test()
+        logging.info("Tests Passed")
     except AssertionError as e:
-        print >> sys.stderr, "ERROR: TESTS FAILED"
-        print >> sys.stderr, e
-
+        logging.error("ERROR: TESTS FAILED")
+        logging.error(e)

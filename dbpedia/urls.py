@@ -96,7 +96,7 @@ def build(resource):
                          language=resource.language,
                          format=resource.format)
 
-def _test_urls():
+def _test():
     import nose.tools as nt
     from resource import DBpediaResource as res
 
@@ -138,10 +138,12 @@ def _test_urls():
 
 
 if __name__ == "__main__":
-    import sys
+    import logging
+    logging.basicConfig(level=logging.INFO)
+
     try:
-        _test_urls()
-        print "Tests Passed"
+        _test()
+        logging.info("Tests Passed")
     except AssertionError as e:
-        print >> sys.stderr, "ERROR: TESTS FAILED"
-        print >> sys.stderr, e
+        logging.error("ERROR: TESTS FAILED")
+        logging.error(e)

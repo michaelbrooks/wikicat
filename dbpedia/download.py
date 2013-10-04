@@ -9,13 +9,14 @@ __all__ = ['retrieve', 'clean', 'clean_all']
 import os, time
 from string import Template
 import logging
+log = logging.getLogger("dbpedia.download")
 
 import requests, urls
 
 # directory for cached files
 CACHE_DIR = '.dbpedia_cache'
 # file download chunk size in bytes
-CHUNK_SIZE = 20 * 1024
+CHUNK_SIZE = 50 * 1024
 # template for paths to cached resources
 cache_file_template = Template('${version}/${language}/${format}/${dataset}.bz2')
 
@@ -65,7 +66,7 @@ def _download(remote_name, local_name, chunk_size=CHUNK_SIZE):
     :return:
     """
 
-    logging.info("Downloading from %s", remote_name)
+    log.info("Downloading from %s", remote_name)
 
     before = time.time()
 
@@ -88,7 +89,7 @@ def _download(remote_name, local_name, chunk_size=CHUNK_SIZE):
     duration = after - before
     rate = _sizeof_fmt(bytes / duration)
 
-    logging.info("Downloaded %s in %fs (%s/s)", size, duration, rate)
+    log.info("Downloaded %s in %fs (%s/s)", size, duration, rate)
 
     return local_name
 
@@ -111,7 +112,7 @@ def retrieve(resource):
     local_name = _resource_filename(resource)
 
     # see if it exists
-    logging.info("Checking cache for %s", local_name)
+    log.info("Checking cache for %s", local_name)
     if not os.path.exists(local_name):
 
         # if not, go ahead and download it
@@ -119,7 +120,7 @@ def retrieve(resource):
 
         _download(remote_name, local_name)
     else:
-        logging.info("Using cached file %s", local_name)
+        log.info("Using cached file %s", local_name)
 
     return local_name
 
@@ -136,7 +137,7 @@ def clean(resource):
 
     os.remove(local_name)
 
-    logging.info("Cleaned cache for %s", local_name)
+    log.info("Cleaned cache for %s", local_name)
 
 def clean_all():
     """
@@ -144,11 +145,12 @@ def clean_all():
     :return:
     """
 
-    import shutil
-    shutil.rmtree(CACHE_DIR)
+    if os.path.exists(CACHE_DIR):
+        import shutil
+        shutil.rmtree(CACHE_DIR)
 
 
-def _test_download():
+def _test():
     import nose.tools as nt
     import time
     from resource import DBpediaResource
@@ -189,12 +191,12 @@ def _test_download():
     nt.ok_(not os.path.exists(local_name))
 
 if __name__ == "__main__":
-    import sys
+    import logging
     logging.basicConfig(level=logging.INFO)
 
     try:
-        _test_download()
-        print "Tests Passed"
+        _test()
+        logging.info("Tests Passed")
     except AssertionError as e:
-        print >> sys.stderr, "ERROR: TESTS FAILED"
-        print >> sys.stderr, e
+        logging.error("ERROR: TESTS FAILED")
+        logging.error(e)

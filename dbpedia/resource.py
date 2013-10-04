@@ -2,6 +2,8 @@
 # Convenient class for representing dbpedia resources.
 #
 
+__all__ = ['DBpediaResource']
+
 import bz2
 import download
 
@@ -27,7 +29,7 @@ class DBpediaResource(object):
         self.language = language
         self.format = format
 
-    def open(self):
+    def get_file(self):
         """
         Downloads the resource if necessary and opens an
         uncompressed stream for reading.
@@ -49,7 +51,7 @@ class DBpediaResource(object):
         download.clean_all()
 
 
-def _test_resource():
+def _test():
     import nose.tools as nt
 
     res = DBpediaResource(dataset="category_labels",
@@ -57,7 +59,7 @@ def _test_resource():
                           language='en',
                           format='nt')
 
-    with res.open() as s:
+    with res.get_file() as s:
         top = s.read(200)
 
     nt.assert_equal(len(top), 200)
@@ -68,11 +70,12 @@ def _test_resource():
     nt.assert_equal(lines[0], '# started 2013-07-10T03:11:48Z')
 
 if __name__ == "__main__":
-    import sys
+    import logging
+    logging.basicConfig(level=logging.INFO)
 
     try:
-        _test_resource()
-        print "Tests Passed"
+        _test()
+        logging.info("Tests Passed")
     except AssertionError as e:
-        print >> sys.stderr, "ERROR: TESTS FAILED"
-        print >> sys.stderr, e
+        logging.error("ERROR: TESTS FAILED")
+        logging.error(e)
