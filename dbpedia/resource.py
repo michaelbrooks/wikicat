@@ -15,12 +15,19 @@ class DBpediaResource(object):
     stream of the contents of the resource for further processing.
     """
     def __init__(self, dataset, version, language="en", format="nt"):
+        """
+        Create a new dbpedia resource.
+        :param dataset:
+        :param version:
+        :param language:
+        :param format:
+        """
         self.dataset = dataset
         self.version = version
         self.language = language
         self.format = format
 
-    def stream(self):
+    def open(self):
         """
         Downloads the resource if necessary and opens an
         uncompressed stream for reading.
@@ -50,7 +57,7 @@ def _test_resource():
                           language='en',
                           format='nt')
 
-    with res.stream() as s:
+    with res.open() as s:
         top = s.read(200)
 
     nt.assert_equal(len(top), 200)
