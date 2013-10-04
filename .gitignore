@@ -33,3 +33,13 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+
+# Virtual environment
+venv
+
+# User-level IntelliJ IDEA project files
+.idea/workspace.xml
+.idea/tasks.xml
+
+# Temporary files
+.dbpedia_cache
