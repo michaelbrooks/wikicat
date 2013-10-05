@@ -3,7 +3,7 @@ This file is responsible for cleaning garbage we don't care about off the
 triples provided by DBpedia. For example, url bases.
 """
 
-__all__ = ['article_categories', 'category_labels', 'category_category_labels']
+__all__ = ['article_categories', 'category_labels', 'category_categories']
 
 from resource import DBpediaResource
 from ntparser import NTripleParser
@@ -122,7 +122,7 @@ def category_labels(version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
     resource = DBpediaResource(dataset="category_labels", version=version, language=language, format="nt")
     return TripleCollection(resource, CategoryLabelIterator)
 
-def category_category_labels(version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
+def category_categories(version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
     """
     Returns an iterable collection that produces 2-tuples of category
     pairs like (narrower, broader).
