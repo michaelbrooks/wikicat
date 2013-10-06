@@ -5,16 +5,27 @@ Functions for importing datasets.
 import mysql
 from confirm import query_yes_no
 
-def insert_dataset(dataset, modelClass, db):
+import logging
+log = logging.getLogger('catdb.bulk_insert')
+
+INSERT_BATCH_SIZE = 10000
+
+confirm_replacements = True
+def use_confirmations(confirm):
+    global confirm_replacements
+    confirm_replacements = confirm
+
+def insert_dataset(dataset, modelClass, db, limit=None):
 
     if modelClass.table_exists():
         table_name = modelClass._meta.db_table
         database = db.database
 
-        confirm = query_yes_no("Replace existing table `%s` on database `%s`?" %(table_name, database),
-                               default="no")
-        if not confirm:
-            return
+        if confirm_replacements:
+            confirm = query_yes_no("Replace existing table `%s` on database `%s`?" %(table_name, database),
+                                   default='no')
+            if not confirm:
+                return
 
         # drop the table first
         modelClass.drop_table()
@@ -23,18 +34,39 @@ def insert_dataset(dataset, modelClass, db):
     modelClass.create_table()
 
     imported = 0
-    with db.transaction():
-        for record in dataset:
-            modelClass.create(**record)
-            imported += 1
+    batch_idx = 0
 
-    db.commit()
+    modelClass._meta.auto_increment = False
+    header = "INSERT INTO category_labels (category, label) VALUES "
+
+    batch = []
+    for record in dataset:
+        batch.append(record)
+
+        if INSERT_BATCH_SIZE is not None and len(batch) >= INSERT_BATCH_SIZE:
+
+            sql, params = modelClass.generate_batch_insert(batch)
+            db.execute_sql(sql, params)
+            db.commit()
+
+            imported += len(batch)
+            log.info("... inserted %d rows ...", imported)
+            batch = []
+
+        if limit is not None and imported >= limit:
+            break
+
+    if len(batch):
+        sql, params = modelClass.generate_batch_insert(batch)
+        db.execute_sql(sql, params)
+        db.commit()
+        imported += len(batch)
 
     return imported
 
-def category_labels(dataset, db):
+def category_labels(dataset, db, limit=None):
     from models import CategoryLabel
-    return insert_dataset(dataset, CategoryLabel, db)
+    return insert_dataset(dataset, CategoryLabel, db, limit=limit)
 
 
 def _test():

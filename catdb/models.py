@@ -20,6 +20,48 @@ class BaseModel(Model):
     class Meta:
         database = database_proxy  # Use proxy for our DB.
 
+    @classmethod
+    def generate_batch_insert(cls, dictionaries):
+        """
+        Generates a bulk insert statement a list of dictionaries
+        representing model data.
+        :param dictionaries:
+        :return:
+        """
+
+        if len(dictionaries) == 0:
+            return None
+
+        # get an example dictionary
+        example = dictionaries[0]
+
+        quote_char = cls._meta.database.quote_char
+        interpolation = cls._meta.database.interpolation
+
+        parts = ['INSERT INTO %s%s%s' % (quote_char, cls._meta.db_table, quote_char)]
+        fields = [f for f in cls._meta.fields if f in example]
+
+        parts.append("(")
+        parts.append(",".join('%s%s%s' % (quote_char, f, quote_char) for f in fields))
+        parts.append(")")
+
+        parts.append("VALUES")
+
+        params = []
+
+        settings = []
+        for d in dictionaries:
+
+            values = [d[f] for f in fields]
+            placeholder = ",".join(interpolation for v in values)
+            settings.append("(%s)" % placeholder)
+            params.extend(values)
+
+        parts.append(",".join(settings))
+        sql = " ".join(parts)
+
+        return sql, params
+
 class ArticleCategory(BaseModel):
     id = PrimaryKeyField()
     article = CharField(index=True, max_length=ARTICLE_MAX_LENGTH)

@@ -10,6 +10,9 @@ https://github.com/RDFLib/rdflib/blob/master/rdflib/plugins/parsers/ntriples.py
 __all__ = ['NTripleParser', 'validate']
 
 import re
+import traceback
+import logging
+log = logging.getLogger('dbpedia.ntparser')
 
 # a no-op for Python 2
 # see https://github.com/RDFLib/rdflib/blob/master/rdflib/py3compat.py
@@ -90,6 +93,7 @@ class NTripleParser(object):
 
     def __init__(self, file):
         self.iterator = file.__iter__()
+        self.lineno = 0
 
     def _parseline(self):
         self._eat(r_wspace)
@@ -116,9 +120,9 @@ class NTripleParser(object):
     def _eat(self, pattern):
         m = pattern.match(self.line)
         if not m:  # @@ Why can't we get the original pattern?
-            print(dir(pattern))
-            print repr(self.line), type(self.line)
-            raise ParseError("Failed to eat %s" % pattern)
+            # print(dir(pattern))
+            # print repr(self.line), type(self.line)
+            raise ParseError("Failed to eat %s" % pattern.pattern)
         self.line = self.line[m.end():]
         return m
 
@@ -198,7 +202,15 @@ class NTripleParser(object):
             # this will raise a StopException if there are no more lines
             # remove the trailing newline
             self.line = self.iterator.next().strip()
-            triple = self._parseline()
+            self.unparsed = self.line
+            self.lineno += 1
+
+            try:
+                triple = self._parseline()
+            except ParseError as e:
+                log.warn("Parse error on line %d: %s", self.lineno, e.message)
+                log.warn("Line was: %s", self.unparsed)
+                traceback.print_exc()
 
         return triple
 
