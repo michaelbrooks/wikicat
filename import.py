@@ -101,7 +101,7 @@ if __name__ == "__main__":
         with incoming as data:
 
             before = time.time()
-            imported = getattr(bulk_insert, name)(data, db)
+            imported = getattr(bulk_insert, name)(data, db, limit=50000)
             after = time.time()
 
             if imported:

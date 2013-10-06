@@ -68,6 +68,13 @@ def category_labels(dataset, db, limit=None):
     from models import CategoryLabel
     return insert_dataset(dataset, CategoryLabel, db, limit=limit)
 
+def category_categories(dataset, db, limit=None):
+    from models import CategoryCategory
+    return insert_dataset(dataset, CategoryCategory, db, limit=limit)
+
+def article_categories(dataset, db, limit=None):
+    from models import ArticleCategory
+    return insert_dataset(dataset, ArticleCategory, db, limit=limit)
 
 def _test():
     import nose.tools as nt

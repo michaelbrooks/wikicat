@@ -4,7 +4,7 @@
 
 __all__ = ['DBpediaResource']
 
-import bz2
+import bz2file as bz2
 import download
 
 # The size of the buffer for bz2 decompression
@@ -35,7 +35,7 @@ class DBpediaResource(object):
         uncompressed stream for reading.
         """
         local_filename = download.retrieve(self)
-        return bz2.BZ2File(local_filename, mode='r', buffering=BZ2_BUFFER_SIZE)
+        return bz2.open(local_filename, mode='rt')
 
     def clean(self):
         """
