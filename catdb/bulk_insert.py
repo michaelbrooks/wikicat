@@ -5,11 +5,10 @@ Functions for importing datasets.
 import mysql
 from confirm import query_yes_no
 
-def category_labels(dataset, db, limit=None):
-    from models import CategoryLabel
+def insert_dataset(dataset, modelClass, db):
 
-    if CategoryLabel.table_exists():
-        table_name = CategoryLabel._meta.db_table
+    if modelClass.table_exists():
+        table_name = modelClass._meta.db_table
         database = db.database
 
         confirm = query_yes_no("Replace existing table `%s` on database `%s`?" %(table_name, database),
@@ -18,23 +17,25 @@ def category_labels(dataset, db, limit=None):
             return
 
         # drop the table first
-        CategoryLabel.drop_table()
+        modelClass.drop_table()
 
     # create the table
-    CategoryLabel.create_table()
+    modelClass.create_table()
 
     imported = 0
     with db.transaction():
-        for category, label in dataset:
-            CategoryLabel.create(category=category, label=label)
+        for record in dataset:
+            modelClass.create(**record)
             imported += 1
-
-            if limit is not None and limit == imported:
-                break
 
     db.commit()
 
     return imported
+
+def category_labels(dataset, db):
+    from models import CategoryLabel
+    return insert_dataset(dataset, CategoryLabel, db)
+
 
 def _test():
     import nose.tools as nt
@@ -46,18 +47,18 @@ def _test():
 
     # some example data
     dataset = [
-        (u'Category:Futurama', u'Futurama'),
-        (u'Category:World_War_II', u'World War II'),
-        (u'Category:Programming_languages', u'Programming languages'),
-        (u'Category:Professional_wrestling', u'Professional wrestling'),
-        (u'Category:Algebra', u'Algebra'),
-        (u'Category:Anime', u'Anime'),
-        (u'Category:Abstract_algebra', u'Abstract algebra'),
-        (u'Category:Mathematics', u'Mathematics'),
-        (u'Category:Linear_algebra', u'Linear algebra'),
-        (u'Category:Calculus', u'Calculus'),
-        (u'Category:Monarchs', u'Monarchs'),
-        (u'Category:British_monarchs', u'British monarchs'),
+        {'category': u'Category:Futurama', 'label': u'Futurama'},
+        {'category': u'Category:World_War_II', 'label': u'World War II'},
+        {'category': u'Category:Programming_languages', 'label': u'Programming languages'},
+        {'category': u'Category:Professional_wrestling', 'label': u'Professional wrestling'},
+        {'category': u'Category:Algebra', 'label': u'Algebra'},
+        {'category': u'Category:Anime', 'label': u'Anime'},
+        {'category': u'Category:Abstract_algebra', 'label': u'Abstract algebra'},
+        {'category': u'Category:Mathematics', 'label': u'Mathematics'},
+        {'category': u'Category:Linear_algebra', 'label': u'Linear algebra'},
+        {'category': u'Category:Calculus', 'label': u'Calculus'},
+        {'category': u'Category:Monarchs', 'label': u'Monarchs'},
+        {'category': u'Category:British_monarchs', 'label': u'British monarchs'},
     ]
 
     imported = category_labels(dataset, db)

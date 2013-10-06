@@ -31,7 +31,10 @@ class ArticleCategoriesIterator(object):
         article = url_last_part(subject)
         category = url_last_part(object)
 
-        return article, category
+        return {
+            "article": article,
+            "category": category
+        }
 
 class CategoryLabelIterator(object):
     def __init__(self, records):
@@ -50,7 +53,10 @@ class CategoryLabelIterator(object):
         category = url_last_part(subject)
         label = object
 
-        return category, label
+        return {
+            "category": category,
+            "label": label
+        }
 
 class CategoryCategoryIterator(object):
     def __init__(self, records):
@@ -73,15 +79,19 @@ class CategoryCategoryIterator(object):
         narrower = url_last_part(subject)
         broader = url_last_part(object)
 
-        return narrower, broader
+        return {
+            "narrower": narrower,
+            "broader": broader
+        }
 
 class TripleCollection(object):
 
     def __init__(self, resource, iteratorClass):
-        self.resource_file = resource.get_file()
+        self.resource = resource
         self.iteratorClass = iteratorClass
 
     def __enter__(self):
+        self.resource_file = self.resource.get_file()
         self.resource_file.__enter__()
         return self
 
@@ -141,25 +151,26 @@ def _test():
     import nose.tools as nt
 
     expectation = [
-        (u'Category:Futurama', u'Futurama'),
-        (u'Category:World_War_II', u'World War II'),
-        (u'Category:Programming_languages', u'Programming languages'),
-        (u'Category:Professional_wrestling', u'Professional wrestling'),
-        (u'Category:Algebra', u'Algebra'),
-        (u'Category:Anime', u'Anime'),
-        (u'Category:Abstract_algebra', u'Abstract algebra'),
-        (u'Category:Mathematics', u'Mathematics'),
-        (u'Category:Linear_algebra', u'Linear algebra'),
-        (u'Category:Calculus', u'Calculus'),
-        (u'Category:Monarchs', u'Monarchs'),
-        (u'Category:British_monarchs', u'British monarchs'),
+        {'category': u'Category:Futurama', 'label': u'Futurama'},
+        {'category': u'Category:World_War_II', 'label': u'World War II'},
+        {'category': u'Category:Programming_languages', 'label': u'Programming languages'},
+        {'category': u'Category:Professional_wrestling', 'label': u'Professional wrestling'},
+        {'category': u'Category:Algebra', 'label': u'Algebra'},
+        {'category': u'Category:Anime', 'label': u'Anime'},
+        {'category': u'Category:Abstract_algebra', 'label': u'Abstract algebra'},
+        {'category': u'Category:Mathematics', 'label': u'Mathematics'},
+        {'category': u'Category:Linear_algebra', 'label': u'Linear algebra'},
+        {'category': u'Category:Calculus', 'label': u'Calculus'},
+        {'category': u'Category:Monarchs', 'label': u'Monarchs'},
+        {'category': u'Category:British_monarchs', 'label': u'British monarchs'},
     ]
 
     pairs = 0
     with category_labels() as data:
 
-        for idx, (category, label) in enumerate(data):
-            nt.eq_((category, label), expectation[idx])
+        for idx, record in enumerate(data):
+            nt.eq_(record, expectation[idx])
+
             pairs += 1
 
             if idx == len(expectation) - 1:

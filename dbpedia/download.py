@@ -10,6 +10,7 @@ import os, time
 from string import Template
 import logging
 log = logging.getLogger("dbpedia.download")
+log.setLevel(logging.INFO)
 
 import requests, urls
 

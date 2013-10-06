@@ -16,7 +16,7 @@ class DBpediaResource(object):
     Provides a simple api for obtaining an uncompressed file
     stream of the contents of the resource for further processing.
     """
-    def __init__(self, dataset, version, language="en", format="nt"):
+    def __init__(self, dataset, version, language, format="nt"):
         """
         Create a new dbpedia resource.
         :param dataset:

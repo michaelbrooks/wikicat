@@ -8,10 +8,14 @@ import logging
 from models import database_proxy
 
 log = logging.getLogger('catdb.mysql')
+log.setLevel(logging.INFO)
 
+DEFAULT_USER = 'root'
+DEFAULT_HOST = 'localhost'
+DEFAULT_PASSWORD = ''
 DEFAULT_PORT = 3306
 
-def connect(database, user, host, password='', port=DEFAULT_PORT):
+def connect(database, user=DEFAULT_USER, host=DEFAULT_HOST, password=DEFAULT_PASSWORD, port=DEFAULT_PORT):
     log.info("Connecting to '%s' on %s@%s:%d", database, user, host, port)
     db = peewee.MySQLDatabase(database,
                               user=user, host=host, passwd=password, port=port,

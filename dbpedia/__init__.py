@@ -1,10 +1,14 @@
 
-__all__ = ['DBpediaResource', 'NTripleParser']
+__all__ = ['DBpediaResource', 'NTripleParser',
+           "DEFAULT_LANGUAGE", "DEFAULT_VERSION",
+           "datasets"]
 
 from resource import DBpediaResource
 from ntparser import NTripleParser
 
 import urls, download, resource, ntparser, datasets
+
+from datasets import DEFAULT_LANGUAGE, DEFAULT_VERSION
 
 if __name__ == "__main__":
     import sys
