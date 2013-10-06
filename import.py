@@ -72,6 +72,11 @@ if __name__ == "__main__":
                         action="store_true",
                         help="answer yes to all confirmations")
 
+    parser.add_argument("--limit",
+                        required=False,
+                        default=None,
+                        help="number of rows to insert, for debugging")
+
     args = parser.parse_args()
 
     if args.verbose:
@@ -104,7 +109,7 @@ if __name__ == "__main__":
     with incoming as data:
 
         before = time.time()
-        imported = models.insert_dataset(args.dataset, data, limit=50000)
+        imported = models.insert_dataset(args.dataset, data, limit=args.limit)
         after = time.time()
 
         if imported:
