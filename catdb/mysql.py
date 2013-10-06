@@ -8,7 +8,6 @@ import logging
 from models import database_proxy
 
 log = logging.getLogger('catdb.mysql')
-log.setLevel(logging.INFO)
 
 DEFAULT_USER = 'root'
 DEFAULT_HOST = 'localhost'

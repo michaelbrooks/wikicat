@@ -14,13 +14,18 @@ from dbpedia import datasets
 from dbpedia import DEFAULT_LANGUAGE, DEFAULT_VERSION
 
 import logging
-logging.basicConfig(level=logging.INFO)
 
 if __name__ == "__main__":
     import argparse
     import getpass
 
     parser = argparse.ArgumentParser("Import data files from dbpedia into a database.")
+
+    parser.add_argument("--verbose",
+                        required=False,
+                        default=False,
+                        action='store_true',
+                        help="Print lots of messages")
 
     parser.add_argument("--version", "-v",
                         required=False,
@@ -51,6 +56,10 @@ if __name__ == "__main__":
                         help="database username")
 
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO)
+
     password = getpass.getpass(prompt="Enter db password for %s@%s:%s: " %(args.user, args.hostname, args.port))
 
     db = mysql.connect(database=args.database,
@@ -62,5 +71,5 @@ if __name__ == "__main__":
 
     with datasets.category_labels(version=args.version, language=args.lang) as data:
         imported = bulk_insert.category_labels(data, db)
-        logging.info("Imported %d category_labels" , imported)
+        print "Imported %d category_labels" & imported
 

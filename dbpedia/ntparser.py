@@ -116,8 +116,8 @@ class NTripleParser(object):
     def _eat(self, pattern):
         m = pattern.match(self.line)
         if not m:  # @@ Why can't we get the original pattern?
-            # print(dir(pattern))
-            # print repr(self.line), type(self.line)
+            print(dir(pattern))
+            print repr(self.line), type(self.line)
             raise ParseError("Failed to eat %s" % pattern)
         self.line = self.line[m.end():]
         return m
