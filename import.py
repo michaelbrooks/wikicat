@@ -97,6 +97,8 @@ if __name__ == "__main__":
     if args.yes:
         models.use_confirmations(False)
 
+    models.set_model_versions(args.version)
+
     incoming = datasets.get_collection(dataset=args.dataset, version=args.version, language=args.lang)
 
     with incoming as data:

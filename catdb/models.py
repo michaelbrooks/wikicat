@@ -3,7 +3,8 @@ This file can be used to insert a set of
 article_categories.
 """
 
-__all__ = ['ArticleCategory', 'CategoryCategory', 'CategoryLabel', 'database_proxy']
+__all__ = ['ArticleCategory', 'CategoryCategory', 'CategoryLabel',
+           'database_proxy', 'use_confirmations', 'set_model_versions']
 
 import peewee
 from peewee import IntegerField, CharField, PrimaryKeyField
@@ -102,6 +103,11 @@ model_mapping = {
     'category_categories': CategoryCategory,
     'category_labels': CategoryLabel
 }
+
+def set_model_versions(version):
+    version_code = version.replace(".", "_")
+    for m in model_mapping.values():
+        m._meta.db_table += "_%s" % version_code
 
 def insert_dataset(dataset, records, limit=None):
     if not dataset in model_mapping:
