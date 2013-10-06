@@ -7,6 +7,12 @@ __all__ = ['DBpediaResource']
 import bz2file as bz2
 import download
 
+dataset_names = [
+    'category_categories',
+    'category_labels',
+    'article_categories'
+]
+
 # The size of the buffer for bz2 decompression
 BZ2_BUFFER_SIZE = 10 * 1024
 
@@ -24,6 +30,9 @@ class DBpediaResource(object):
         :param language:
         :param format:
         """
+        if dataset not in dataset_names:
+            raise Exception("Dataset name %s not recognized" % dataset)
+
         self.dataset = dataset
         self.version = version
         self.language = language

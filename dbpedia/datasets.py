@@ -3,7 +3,7 @@ This file is responsible for cleaning garbage we don't care about off the
 triples provided by DBpedia. For example, url bases.
 """
 
-__all__ = ['article_categories', 'category_labels', 'category_categories']
+__all__ = ['get_collection', 'DEFAULT_VERSION', 'DEFAULT_LANGUAGE']
 
 from resource import DBpediaResource
 from ntparser import NTripleParser
@@ -102,50 +102,18 @@ class TripleCollection(object):
         parser = NTripleParser(self.resource_file)
         return self.iteratorClass(parser.__iter__())
 
+iterator_mapping = {
+    'article_categories': ArticleCategoriesIterator,
+    'category_categories': CategoryCategoryIterator,
+    'category_labels': CategoryLabelIterator
+}
 
-def article_categories(version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
-    """
-    Returns an iterable collection that produces 2-tuples of (article, category).
-
-    For example: ("Achilles", "Category:Characters_in_the_Iliad")
-
-    :param version:
-    :param language:
-    :return:
-    """
-
-    resource = DBpediaResource(dataset="article_categories", version=version, language=language, format="nt")
-    return TripleCollection(resource, ArticleCategoriesIterator)
-
-
-def category_labels(version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
-    """
-    Returns an iterable collection that produces 2-tuples of (category, label).
-
-    For example:
-    ("Category:British_monarchs", "British monarchs")
-
-    :param version:
-    :param language:
-    :return:
-    """
-    resource = DBpediaResource(dataset="category_labels", version=version, language=language, format="nt")
-    return TripleCollection(resource, CategoryLabelIterator)
-
-def category_categories(version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
-    """
-    Returns an iterable collection that produces 2-tuples of category
-    pairs like (narrower, broader).
-
-    For example:
-    ("Category:World_War_II", "Category:Global_conflicts")
-
-    :param version:
-    :param language:
-    :return:
-    """
-    resource = DBpediaResource(dataset="skos_categories", version=version, language=language, format="nt")
-    return TripleCollection(resource, CategoryCategoryIterator)
+def get_collection(dataset, version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
+    if dataset not in iterator_mapping:
+        raise Exception("No iterator for %s" % dataset)
+    resource = DBpediaResource(dataset=dataset, version=version, language=language, format="nt")
+    iterator = iterator_mapping[dataset]
+    return TripleCollection(resource, iterator)
 
 def _test():
     import nose.tools as nt
@@ -166,7 +134,7 @@ def _test():
     ]
 
     pairs = 0
-    with category_labels() as data:
+    with get_collection('category_labels') as data:
 
         for idx, record in enumerate(data):
             nt.eq_(record, expectation[idx])

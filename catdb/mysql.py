@@ -5,8 +5,6 @@ This file can connect to a MySQL database.
 import peewee
 import logging
 
-from models import database_proxy
-
 log = logging.getLogger('catdb.mysql')
 
 DEFAULT_USER = 'root'
@@ -20,9 +18,6 @@ def connect(database, user=DEFAULT_USER, host=DEFAULT_HOST, password=DEFAULT_PAS
                               user=user, host=host, passwd=password, port=port,
                               autocommit=False)
     # autocommit set to false for performance in bulk insert statements
-
-    # point all the models at this database
-    database_proxy.initialize(db)
 
     try:
         db.connect()

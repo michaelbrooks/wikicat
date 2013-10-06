@@ -9,12 +9,23 @@ import peewee
 from peewee import IntegerField, CharField, PrimaryKeyField
 from peewee import Model
 from playhouse.proxy import Proxy
+from confirm import query_yes_no
+
+import logging
+log = logging.getLogger('catdb.models')
 
 ARTICLE_MAX_LENGTH = 200
 CATEGORY_MAX_LENGTH = 200
 LABEL_MAX_LENGTH = 200
 
 database_proxy = Proxy()  # Create a proxy for our db.
+
+INSERT_BATCH_SIZE = 10000
+
+confirm_replacements = True
+def use_confirmations(confirm):
+    global confirm_replacements
+    confirm_replacements = confirm
 
 class BaseModel(Model):
     class Meta:
@@ -85,3 +96,106 @@ class CategoryLabel(BaseModel):
 
     class Meta:
         db_table='category_labels'
+
+model_mapping = {
+    'article_categories': ArticleCategory,
+    'category_categories': CategoryCategory,
+    'category_labels': CategoryLabel
+}
+
+def insert_dataset(dataset, records, limit=None):
+    if not dataset in model_mapping:
+        raise Exception("No model for %s" % dataset)
+
+    modelClass = model_mapping[dataset]
+    db = modelClass._meta.database
+
+    if modelClass.table_exists():
+        table_name = modelClass._meta.db_table
+        database = db.database
+
+        if confirm_replacements:
+            confirm = query_yes_no("Replace existing table `%s` on database `%s`?" %(table_name, database),
+                                   default='no')
+            if not confirm:
+                return
+
+        # drop the table first
+        modelClass.drop_table()
+
+    # create the table
+    modelClass.create_table()
+
+    imported = 0
+
+    modelClass._meta.auto_increment = False
+
+    batch = []
+    for record in records:
+        batch.append(record)
+
+        if INSERT_BATCH_SIZE is not None and len(batch) >= INSERT_BATCH_SIZE:
+
+            sql, params = modelClass.generate_batch_insert(batch)
+            db.execute_sql(sql, params)
+            db.commit()
+
+            imported += len(batch)
+            log.info("... inserted %d rows ...", imported)
+            batch = []
+
+        if limit is not None and imported >= limit:
+            break
+
+    if len(batch):
+        sql, params = modelClass.generate_batch_insert(batch)
+        db.execute_sql(sql, params)
+        db.commit()
+        imported += len(batch)
+
+    return imported
+
+
+def _test():
+    import nose.tools as nt
+    import mysql
+
+    db = mysql.connect(database="wikicat",
+                       user="root", host="localhost")
+
+    nt.ok_(db)
+
+    # point all the models at this database
+    database_proxy.initialize(db)
+    use_confirmations(False)
+
+    # some example data
+    dataset = [
+        {'category': u'Category:Futurama', 'label': u'Futurama'},
+        {'category': u'Category:World_War_II', 'label': u'World War II'},
+        {'category': u'Category:Programming_languages', 'label': u'Programming languages'},
+        {'category': u'Category:Professional_wrestling', 'label': u'Professional wrestling'},
+        {'category': u'Category:Algebra', 'label': u'Algebra'},
+        {'category': u'Category:Anime', 'label': u'Anime'},
+        {'category': u'Category:Abstract_algebra', 'label': u'Abstract algebra'},
+        {'category': u'Category:Mathematics', 'label': u'Mathematics'},
+        {'category': u'Category:Linear_algebra', 'label': u'Linear algebra'},
+        {'category': u'Category:Calculus', 'label': u'Calculus'},
+        {'category': u'Category:Monarchs', 'label': u'Monarchs'},
+        {'category': u'Category:British_monarchs', 'label': u'British monarchs'},
+    ]
+
+    imported = insert_dataset('category_labels', dataset)
+
+    nt.assert_equal(len(dataset), imported)
+
+if __name__ == "__main__":
+    import logging
+    logging.basicConfig(level=logging.INFO)
+
+    try:
+        _test()
+        logging.info("Tests Passed")
+    except AssertionError as e:
+        logging.error("ERROR: TESTS FAILED")
+        logging.error(e)

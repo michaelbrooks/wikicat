@@ -6,11 +6,11 @@ and database connection information for where
 to store the imported data.
 """
 
-from catdb import bulk_insert
+from catdb import models
 import catdb.mysql as mysql
 from catdb.mysql import DEFAULT_PORT, DEFAULT_HOST, DEFAULT_USER, DEFAULT_PASSWORD
 
-from dbpedia import datasets
+from dbpedia import datasets, resource
 from dbpedia import DEFAULT_LANGUAGE, DEFAULT_VERSION
 
 import logging
@@ -21,6 +21,10 @@ if __name__ == "__main__":
     import getpass
 
     parser = argparse.ArgumentParser("Import data files from dbpedia into a database.")
+
+    parser.add_argument("dataset",
+                        choices=resource.dataset_names,
+                        help="Which dataset to import")
 
     parser.add_argument("--verbose",
                         required=False,
@@ -87,24 +91,21 @@ if __name__ == "__main__":
     if not db:
         exit(1)
 
+    # point all the models at this database
+    models.database_proxy.initialize(db)
+
     if args.yes:
-        bulk_insert.use_confirmations(False)
+        models.use_confirmations(False)
 
-    to_import = ['category_labels',
-                 'category_categories',
-                 'article_categories']
+    incoming = datasets.get_collection(dataset=args.dataset, version=args.version, language=args.lang)
 
-    for name in to_import:
+    with incoming as data:
 
-        incoming = getattr(datasets, name)(version=args.version, language=args.lang)
+        before = time.time()
+        imported = models.insert_dataset(args.dataset, data, limit=50000)
+        after = time.time()
 
-        with incoming as data:
-
-            before = time.time()
-            imported = getattr(bulk_insert, name)(data, db, limit=50000)
-            after = time.time()
-
-            if imported:
-                print "Imported %d category_labels in %f seconds" % (imported, after - before)
+        if imported:
+            print "Imported %d category_labels in %f seconds" % (imported, after - before)
 
 
