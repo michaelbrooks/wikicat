@@ -41,7 +41,7 @@ class VersionHandler_2_0(VersionHandler):
     different dataset names and are stored in a different place.
     """
 
-    url_template = Template("http://dbpedia.org/docs/downloads/${version}/${dataset}.${format}.bz2")
+    url_template = Template("http://downloads.dbpedia.org/${version}/${dataset}.${format}.bz2")
 
     dataset_map = {
         'article_categories': 'articles_category',
@@ -49,7 +49,7 @@ class VersionHandler_2_0(VersionHandler):
         'skos_categories': 'categories_skos'
     }
 
-    def __init__(self, version="2007-08-30"):
+    def __init__(self, version="2.0"):
         super(VersionHandler_2_0, self).__init__(version=version)
 
 class VersionHandler_3_0(VersionHandler):
@@ -110,11 +110,11 @@ def _test():
 
     # go way back and test the 2.0 urls
     nt.assert_equal(build(res("article_categories", "2.0", "en", "nt")),
-                    "http://dbpedia.org/docs/downloads/2007-08-30/articles_category.nt.bz2")
+                    "http://downloads.dbpedia.org/2.0/articles_category.nt.bz2")
     nt.assert_equal(build(res("category_labels", "2.0", "en", "nt")),
-                    "http://dbpedia.org/docs/downloads/2007-08-30/categories_label.nt.bz2")
+                    "http://downloads.dbpedia.org/2.0/categories_label.nt.bz2")
     nt.assert_equal(build(res("skos_categories", "2.0", "en", "nt")),
-                    "http://dbpedia.org/docs/downloads/2007-08-30/categories_skos.nt.bz2")
+                    "http://downloads.dbpedia.org/2.0/categories_skos.nt.bz2")
 
     # try several versions of the article_categories dataset
     nt.assert_equal(build(res("article_categories", "3.8", "en", "nt")),
@@ -135,7 +135,6 @@ def _test():
                     "http://downloads.dbpedia.org/3.1/en/articlecategories_en.nt.bz2")
     nt.assert_equal(build(res("article_categories", "3.0", "en", "nt")),
                     "http://downloads.dbpedia.org/3.0/en/articlecategories_en.nt.bz2")
-
 
 if __name__ == "__main__":
     import logging
