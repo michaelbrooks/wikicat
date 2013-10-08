@@ -4,8 +4,14 @@
 
 __all__ = ['DBpediaResource']
 
-import bz2
+import bz2file as bz2
 import download
+
+dataset_names = [
+    'category_categories',
+    'category_labels',
+    'article_categories'
+]
 
 # The size of the buffer for bz2 decompression
 BZ2_BUFFER_SIZE = 10 * 1024
@@ -16,7 +22,7 @@ class DBpediaResource(object):
     Provides a simple api for obtaining an uncompressed file
     stream of the contents of the resource for further processing.
     """
-    def __init__(self, dataset, version, language="en", format="nt"):
+    def __init__(self, dataset, version, language, format="nt"):
         """
         Create a new dbpedia resource.
         :param dataset:
@@ -24,6 +30,9 @@ class DBpediaResource(object):
         :param language:
         :param format:
         """
+        if dataset not in dataset_names:
+            raise Exception("Dataset name %s not recognized" % dataset)
+
         self.dataset = dataset
         self.version = version
         self.language = language
@@ -35,7 +44,7 @@ class DBpediaResource(object):
         uncompressed stream for reading.
         """
         local_filename = download.retrieve(self)
-        return bz2.BZ2File(local_filename, mode='r', buffering=BZ2_BUFFER_SIZE)
+        return bz2.open(local_filename, mode='rt')
 
     def clean(self):
         """

@@ -3,7 +3,7 @@ This file is responsible for cleaning garbage we don't care about off the
 triples provided by DBpedia. For example, url bases.
 """
 
-__all__ = ['article_categories', 'category_labels', 'category_categories']
+__all__ = ['get_collection', 'DEFAULT_VERSION', 'DEFAULT_LANGUAGE']
 
 from resource import DBpediaResource
 from ntparser import NTripleParser
@@ -31,7 +31,10 @@ class ArticleCategoriesIterator(object):
         article = url_last_part(subject)
         category = url_last_part(object)
 
-        return article, category
+        return {
+            "article": article,
+            "category": category
+        }
 
 class CategoryLabelIterator(object):
     def __init__(self, records):
@@ -50,7 +53,10 @@ class CategoryLabelIterator(object):
         category = url_last_part(subject)
         label = object
 
-        return category, label
+        return {
+            "category": category,
+            "label": label
+        }
 
 class CategoryCategoryIterator(object):
     def __init__(self, records):
@@ -73,15 +79,19 @@ class CategoryCategoryIterator(object):
         narrower = url_last_part(subject)
         broader = url_last_part(object)
 
-        return narrower, broader
+        return {
+            "narrower": narrower,
+            "broader": broader
+        }
 
 class TripleCollection(object):
 
     def __init__(self, resource, iteratorClass):
-        self.resource_file = resource.get_file()
+        self.resource = resource
         self.iteratorClass = iteratorClass
 
     def __enter__(self):
+        self.resource_file = self.resource.get_file()
         self.resource_file.__enter__()
         return self
 
@@ -92,74 +102,43 @@ class TripleCollection(object):
         parser = NTripleParser(self.resource_file)
         return self.iteratorClass(parser.__iter__())
 
+iterator_mapping = {
+    'article_categories': ArticleCategoriesIterator,
+    'category_categories': CategoryCategoryIterator,
+    'category_labels': CategoryLabelIterator
+}
 
-def article_categories(version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
-    """
-    Returns an iterable collection that produces 2-tuples of (article, category).
-
-    For example: ("Achilles", "Category:Characters_in_the_Iliad")
-
-    :param version:
-    :param language:
-    :return:
-    """
-
-    resource = DBpediaResource(dataset="article_categories", version=version, language=language, format="nt")
-    return TripleCollection(resource, ArticleCategoriesIterator)
-
-
-def category_labels(version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
-    """
-    Returns an iterable collection that produces 2-tuples of (category, label).
-
-    For example:
-    ("Category:British_monarchs", "British monarchs")
-
-    :param version:
-    :param language:
-    :return:
-    """
-    resource = DBpediaResource(dataset="category_labels", version=version, language=language, format="nt")
-    return TripleCollection(resource, CategoryLabelIterator)
-
-def category_categories(version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
-    """
-    Returns an iterable collection that produces 2-tuples of category
-    pairs like (narrower, broader).
-
-    For example:
-    ("Category:World_War_II", "Category:Global_conflicts")
-
-    :param version:
-    :param language:
-    :return:
-    """
-    resource = DBpediaResource(dataset="skos_categories", version=version, language=language, format="nt")
-    return TripleCollection(resource, CategoryCategoryIterator)
+def get_collection(dataset, version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
+    if dataset not in iterator_mapping:
+        raise Exception("No iterator for %s" % dataset)
+    resource = DBpediaResource(dataset=dataset, version=version, language=language, format="nt")
+    iterator = iterator_mapping[dataset]
+    return TripleCollection(resource, iterator)
 
 def _test():
     import nose.tools as nt
 
     expectation = [
-        (u'Category:Futurama', u'Futurama'),
-        (u'Category:World_War_II', u'World War II'),
-        (u'Category:Programming_languages', u'Programming languages'),
-        (u'Category:Professional_wrestling', u'Professional wrestling'),
-        (u'Category:Algebra', u'Algebra'),
-        (u'Category:Anime', u'Anime'),
-        (u'Category:Abstract_algebra', u'Abstract algebra'),
-        (u'Category:Mathematics', u'Mathematics'),
-        (u'Category:Linear_algebra', u'Linear algebra'),
-        (u'Category:Calculus', u'Calculus'),
-        (u'Category:Monarchs', u'Monarchs'),
-        (u'Category:British_monarchs', u'British monarchs'),
+        {'category': u'Category:Futurama', 'label': u'Futurama'},
+        {'category': u'Category:World_War_II', 'label': u'World War II'},
+        {'category': u'Category:Programming_languages', 'label': u'Programming languages'},
+        {'category': u'Category:Professional_wrestling', 'label': u'Professional wrestling'},
+        {'category': u'Category:Algebra', 'label': u'Algebra'},
+        {'category': u'Category:Anime', 'label': u'Anime'},
+        {'category': u'Category:Abstract_algebra', 'label': u'Abstract algebra'},
+        {'category': u'Category:Mathematics', 'label': u'Mathematics'},
+        {'category': u'Category:Linear_algebra', 'label': u'Linear algebra'},
+        {'category': u'Category:Calculus', 'label': u'Calculus'},
+        {'category': u'Category:Monarchs', 'label': u'Monarchs'},
+        {'category': u'Category:British_monarchs', 'label': u'British monarchs'},
     ]
 
     pairs = 0
-    with category_labels() as data:
+    with get_collection('category_labels') as data:
 
-        for idx, (category, label) in enumerate(data):
-            nt.eq_((category, label), expectation[idx])
+        for idx, record in enumerate(data):
+            nt.eq_(record, expectation[idx])
+
             pairs += 1
 
             if idx == len(expectation) - 1:

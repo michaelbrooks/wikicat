@@ -3,16 +3,16 @@
 # is in charge of generating urls to DBPedia files.
 # Files are specified by data set, version, language, and format.
 #
-__all__ = ['build', 'canonical_datasets']
+__all__ = ['build']
 
 from string import Template
 
 # For reference, the dataset names that should be used as input
-canonical_datasets = [
-    'article_categoreis',
-    'category_labels',
-    'skos_categories'
-]
+dbpedia_mapping = {
+    'article_categories': 'article_categories',
+    'category_labels': 'category_labels',
+    'category_categories': 'skos_categories'
+}
 
 class VersionHandler(object):
     """
@@ -87,12 +87,17 @@ def build(resource):
     :return:
     """
 
+    if resource.dataset not in dbpedia_mapping:
+        raise Exception("No dbpedia name for %s" % resource.dataset)
+
+    dbpedia_name = dbpedia_mapping[resource.dataset]
+
     if resource.version in version_map:
         handler = version_map[resource.version]
     else:
         handler = VersionHandler(version=resource.version)
 
-    return handler.build(dataset=resource.dataset,
+    return handler.build(dataset=dbpedia_name,
                          language=resource.language,
                          format=resource.format)
 
@@ -105,7 +110,7 @@ def _test():
            "http://downloads.dbpedia.org/3.9/en/article_categories_en.nt.bz2")
     nt.assert_equal(build(res("category_labels", "3.9", "en", "nt")),
            "http://downloads.dbpedia.org/3.9/en/category_labels_en.nt.bz2")
-    nt.assert_equal(build(res("skos_categories", "3.9", "en", "nt")),
+    nt.assert_equal(build(res("category_categories", "3.9", "en", "nt")),
            "http://downloads.dbpedia.org/3.9/en/skos_categories_en.nt.bz2")
 
     # go way back and test the 2.0 urls
@@ -113,7 +118,7 @@ def _test():
                     "http://downloads.dbpedia.org/2.0/articles_category.nt.bz2")
     nt.assert_equal(build(res("category_labels", "2.0", "en", "nt")),
                     "http://downloads.dbpedia.org/2.0/categories_label.nt.bz2")
-    nt.assert_equal(build(res("skos_categories", "2.0", "en", "nt")),
+    nt.assert_equal(build(res("category_categories", "2.0", "en", "nt")),
                     "http://downloads.dbpedia.org/2.0/categories_skos.nt.bz2")
 
     # try several versions of the article_categories dataset
