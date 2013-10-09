@@ -13,11 +13,12 @@ HOSTNAME="127.0.0.1"
 USERNAME=$1
 DATABASE=$2
 
-python import.py \
-    --dataset $DATASETS \
-    --version $VERSIONS \
-    --lang $LANGUAGES \
-    -H $HOSTNAME \
-    -u $USERNAME \
-    -d $DATABASE \
-    --password --yes
+time \
+    python import.py \
+        --dataset $DATASETS \
+        --version $VERSIONS \
+        --lang $LANGUAGES \
+        -H $HOSTNAME \
+        -u $USERNAME \
+        -d $DATABASE \
+        --password --yes
