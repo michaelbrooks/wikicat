@@ -2,6 +2,8 @@
 This file can connect to a MySQL database.
 """
 
+__all__ = ['connect', 'trap_warnings']
+
 import peewee
 import logging
 
@@ -27,6 +29,13 @@ def connect(database, user=DEFAULT_USER, host=DEFAULT_HOST, password=DEFAULT_PAS
 
     return db
 
+def trap_warnings():
+    """
+    Turn MySQL warnings into errors.
+    :return:
+    """
+    import warnings, MySQLdb
+    warnings.filterwarnings('error', category=MySQLdb.Warning)
 
 
 def _test():

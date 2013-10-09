@@ -6,7 +6,7 @@ If already present, they will not be re-downloaded.
 
 __all__ = ['retrieve', 'clean', 'clean_all']
 
-import os, time
+import os, time, sys
 from string import Template
 import logging
 log = logging.getLogger("dbpedia.download")
@@ -66,7 +66,7 @@ def _download(remote_name, local_name, chunk_size=CHUNK_SIZE):
     :return:
     """
 
-    log.info("Downloading from %s", remote_name)
+    print "Downloading from %s" % remote_name
 
     before = time.time()
 
@@ -74,13 +74,20 @@ def _download(remote_name, local_name, chunk_size=CHUNK_SIZE):
     req = requests.get(remote_name, stream = True) # here we need to set stream = True parameter
 
     with open(local_name, 'wb') as out_file:
-
+        chunk_counter = 0
         for chunk in req.iter_content(chunk_size=chunk_size):
 
             if chunk: # filter out keep-alive new chunks
 
                 out_file.write(chunk)
                 out_file.flush()
+                chunk_counter += 1
+
+                sys.stdout.write(".")
+                if chunk_counter % 60 == 0:
+                    print
+
+        print
 
     after = time.time()
 
@@ -89,7 +96,7 @@ def _download(remote_name, local_name, chunk_size=CHUNK_SIZE):
     duration = after - before
     rate = _sizeof_fmt(bytes / duration)
 
-    log.info("Downloaded %s in %fs (%s/s)", size, duration, rate)
+    print "Downloaded %s in %fs (%s/s)" %(size, duration, rate)
 
     return local_name
 

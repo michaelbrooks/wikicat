@@ -2,7 +2,7 @@
 # Convenient class for representing dbpedia resources.
 #
 
-__all__ = ['DBpediaResource']
+__all__ = ['DBpediaResource', 'dataset_names', 'version_names']
 
 import bz2file as bz2
 import download
@@ -11,6 +11,22 @@ dataset_names = [
     'category_categories',
     'category_labels',
     'article_categories'
+]
+
+version_names = [
+    '3.9',
+    '3.8',
+    '3.7',
+    '3.6',
+    '3.5.1',
+    '3.5',
+    '3.4',
+    '3.3',
+    '3.2',
+    '3.1',
+    '3.0',
+    '3.0rc',
+    '2.0'
 ]
 
 # The size of the buffer for bz2 decompression
@@ -32,6 +48,8 @@ class DBpediaResource(object):
         """
         if dataset not in dataset_names:
             raise Exception("Dataset name %s not recognized" % dataset)
+        if version not in version_names:
+            raise Exception("Version name %s not recognized" % version)
 
         self.dataset = dataset
         self.version = version

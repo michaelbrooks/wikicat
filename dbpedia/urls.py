@@ -60,7 +60,7 @@ class VersionHandler_3_0(VersionHandler):
 
     dataset_map = {
         'article_categories': 'articlecategories',
-        'category_labels': 'categorylabels',
+        'category_labels': 'categories_label',
         'skos_categories': 'skoscategories'
     }
 
@@ -140,6 +140,9 @@ def _test():
                     "http://downloads.dbpedia.org/3.1/en/articlecategories_en.nt.bz2")
     nt.assert_equal(build(res("article_categories", "3.0", "en", "nt")),
                     "http://downloads.dbpedia.org/3.0/en/articlecategories_en.nt.bz2")
+
+    nt.assert_equal(build(res("category_labels", '3.0', 'en', 'nt')),
+                    'http://downloads.dbpedia.org/3.0/en/categories_label_en.nt.bz2')
 
 if __name__ == "__main__":
     import logging

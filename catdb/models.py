@@ -6,13 +6,14 @@ article_categories.
 __all__ = ['ArticleCategory', 'CategoryCategory', 'CategoryLabel',
            'database_proxy', 'use_confirmations', 'set_model_versions']
 
-import peewee
 from peewee import IntegerField, CharField, PrimaryKeyField
 from peewee import Model
 from playhouse.proxy import Proxy
 from confirm import query_yes_no
 
 import logging
+import sys
+
 log = logging.getLogger('catdb.models')
 
 ARTICLE_MAX_LENGTH = 200
@@ -104,7 +105,13 @@ model_mapping = {
     'category_labels': CategoryLabel
 }
 
-def set_model_versions(version):
+def set_table_names(version, language):
+    """
+    Customize the names of the database tables for this version and language.
+    :param version:
+    :param language:
+    :return:
+    """
     version_code = version.replace(".", "_")
     for m in model_mapping.values():
         m._meta.db_table += "_%s" % version_code
@@ -136,6 +143,7 @@ def insert_dataset(dataset, records, limit=None):
 
     modelClass._meta.auto_increment = False
 
+    batch_counter = 0
     batch = []
     for record in records:
         batch.append(record)
@@ -147,11 +155,19 @@ def insert_dataset(dataset, records, limit=None):
             db.commit()
 
             imported += len(batch)
+            batch_counter += 1
+
+            sys.stdout.write('.')
+            if batch_counter % 60 == 0:
+                print
+
             log.info("... inserted %d rows ...", imported)
             batch = []
 
         if limit is not None and imported >= limit:
             break
+
+    print
 
     if len(batch):
         sql, params = modelClass.generate_batch_insert(batch)

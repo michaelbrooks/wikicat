@@ -16,30 +16,28 @@ from dbpedia import DEFAULT_LANGUAGE, DEFAULT_VERSION
 import logging
 import time
 
-if __name__ == "__main__":
-    import argparse
-    import getpass
 
-    parser = argparse.ArgumentParser("Import data files from dbpedia into a database.")
+def import_dataset(dataset, version, language, limit=None):
 
-    parser.add_argument("dataset",
-                        choices=resource.dataset_names,
-                        help="Which dataset to import")
+    models.set_table_names(version=version, language=language)
 
-    parser.add_argument("--verbose",
-                        required=False,
-                        default=False,
-                        action='store_true',
-                        help="Print lots of messages")
+    incoming = datasets.get_collection(dataset=dataset, version=version, language=language)
 
-    parser.add_argument("--version", "-v",
-                        required=False,
-                        default=DEFAULT_VERSION,
-                        help="DBpedia version number")
+    with incoming as data:
 
-    parser.add_argument("--lang", default=DEFAULT_LANGUAGE,
-                        required=False,
-                        help="DBpedia language")
+        before = time.time()
+        imported = models.insert_dataset(dataset, data, limit=limit)
+        after = time.time()
+
+        if imported:
+            print "Imported %d category_labels in %f seconds" % (imported, after - before)
+
+def add_database_args(parser):
+    """
+    Add arguments to the argparse parser for connecting to a database.
+    :param parser:
+    :return:
+    """
 
     parser.add_argument("--database", "-d",
                         required=True,
@@ -66,6 +64,58 @@ if __name__ == "__main__":
                         action="store_true",
                         help="use a password")
 
+def add_dataset_args(parser):
+    """
+    Add arguments to the argparse parser for
+    specifying a DBpedia dataset.
+    :param parser:
+    :return:
+    """
+
+    parser.add_argument("--datasets",
+                        required=False,
+                        nargs='+',
+                        metavar='DBPEDIA_DATASET',
+                        choices=resource.dataset_names,
+                        default=[],
+                        help="Which dataset(s) to import")
+
+    parser.add_argument("--versions", "-v",
+                        required=False,
+                        metavar='DBPEDIA_VERSION',
+                        nargs='+',
+                        default=[DEFAULT_VERSION],
+                        choices=resource.version_names,
+                        help="Which DBpedia version number(s) to import")
+
+    parser.add_argument("--langs", default=[DEFAULT_LANGUAGE],
+                        required=False,
+                        metavar="LANGUAGE_CODE",
+                        nargs='+',
+                        help="Which DBpedia language(s) to import")
+
+
+def get_database_password():
+    """
+    Prompts the user to enter a password.
+    :return:
+    """
+    return getpass.getpass(prompt="Enter db password for %s@%s:%s: " %(args.user, args.hostname, args.port))
+
+if __name__ == "__main__":
+    import argparse
+    import getpass
+
+    parser = argparse.ArgumentParser(description="Import data from dbpedia into a database.")
+    add_dataset_args(parser)
+    add_database_args(parser)
+
+    parser.add_argument("--verbose",
+                        required=False,
+                        default=False,
+                        action='store_true',
+                        help="Print lots of messages")
+
     parser.add_argument("--yes",
                         required=False,
                         default=False,
@@ -85,13 +135,15 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.WARN)
 
     if args.password:
-        password = getpass.getpass(prompt="Enter db password for %s@%s:%s: " %(args.user, args.hostname, args.port))
+        password = get_database_password()
     else:
         password = DEFAULT_PASSWORD
 
     db = mysql.connect(database=args.database,
                        user=args.user, host=args.hostname,
                        port=args.port, password=password)
+
+    mysql.trap_warnings()
 
     if not db:
         exit(1)
@@ -102,17 +154,11 @@ if __name__ == "__main__":
     if args.yes:
         models.use_confirmations(False)
 
-    models.set_model_versions(args.version)
+    imported = len(args.langs) * len(args.versions) * len(args.datasets)
+    print "Selected %d datasets for import" % imported
 
-    incoming = datasets.get_collection(dataset=args.dataset, version=args.version, language=args.lang)
-
-    with incoming as data:
-
-        before = time.time()
-        imported = models.insert_dataset(args.dataset, data, limit=args.limit)
-        after = time.time()
-
-        if imported:
-            print "Imported %d category_labels in %f seconds" % (imported, after - before)
-
-
+    for language in args.langs:
+        for version in args.versions:
+            for dataset in args.datasets:
+                print "Importing %s v%s in %s" %(dataset, version, language)
+                import_dataset(dataset=dataset, version=version, language=language, limit=args.limit)
