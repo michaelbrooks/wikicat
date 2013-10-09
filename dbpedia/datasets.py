@@ -10,9 +10,13 @@ from ntparser import NTripleParser
 
 DEFAULT_VERSION = '3.9'
 DEFAULT_LANGUAGE = 'en'
+DEFAULT_URL_BASE = "http://dbpedia.org/resource/"
 
-def url_last_part(url):
-    return url.rsplit('/', 1)[1]
+def url_last_part(url, url_base=DEFAULT_URL_BASE):
+    if not url.startswith(url_base):
+        raise Exception("Unexpected URL %s" % url)
+
+    return url[len(url_base):]
 
 class ArticleCategoriesIterator(object):
     def __init__(self, records):
@@ -146,6 +150,34 @@ def _test():
 
     nt.eq_(len(expectation), pairs)
 
+    # Test some urls with slashes in them
+    tripleTest = [
+         ('http://dbpedia.org/resource/Category:2009_Fed_Cup_Europe/Africa_Zone', 'http://www.w3.org/2000/01/rdf-schema#label', '2009 Fed Cup Europe/Africa Zone'),
+         ('http://dbpedia.org/resource/Category:2009_Davis_Cup_Europe/Africa_Zone', 'http://www.w3.org/2000/01/rdf-schema#label', '2009 Davis Cup Europe/Africa Zone'),
+         ('http://dbpedia.org/resource/Category:2010_Fed_Cup_Europe/Africa_Zone', 'http://www.w3.org/2000/01/rdf-schema#label', '2010 Fed Cup Europe/Africa Zone'),
+         ('http://dbpedia.org/resource/Category:2011_Fed_Cup_Europe/Africa_Zone', 'http://www.w3.org/2000/01/rdf-schema#label', '2011 Fed Cup Europe/Africa Zone'),
+         ('http://dbpedia.org/resource/Category:1992_Federation_Cup_Europe/Africa_Zone', 'http://www.w3.org/2000/01/rdf-schema#label', '1992 Federation Cup Europe/Africa Zone'),
+         ('http://dbpedia.org/resource/Category:1993_Federation_Cup_Europe/Africa_Zone', 'http://www.w3.org/2000/01/rdf-schema#label', '1993 Federation Cup Europe/Africa Zone'),
+         ('http://dbpedia.org/resource/Category:1994_Federation_Cup_Europe/Africa_Zone', 'http://www.w3.org/2000/01/rdf-schema#label', '1994 Federation Cup Europe/Africa Zone'),
+    ]
+    expectation = [
+        {'category': 'Category:2009_Fed_Cup_Europe/Africa_Zone', 'label': '2009 Fed Cup Europe/Africa Zone'},
+        {'category': 'Category:2009_Davis_Cup_Europe/Africa_Zone', 'label': '2009 Davis Cup Europe/Africa Zone'},
+        {'category': 'Category:2010_Fed_Cup_Europe/Africa_Zone', 'label': '2010 Fed Cup Europe/Africa Zone'},
+        {'category': 'Category:2011_Fed_Cup_Europe/Africa_Zone', 'label': '2011 Fed Cup Europe/Africa Zone'},
+        {'category': 'Category:1992_Federation_Cup_Europe/Africa_Zone', 'label': '1992 Federation Cup Europe/Africa Zone'},
+        {'category': 'Category:1993_Federation_Cup_Europe/Africa_Zone', 'label': '1993 Federation Cup Europe/Africa Zone'},
+        {'category': 'Category:1994_Federation_Cup_Europe/Africa_Zone', 'label': '1994 Federation Cup Europe/Africa Zone'}
+    ]
+
+    iter = CategoryLabelIterator(tripleTest.__iter__())
+
+    pairs = 0
+    for idx, result in enumerate(iter):
+        pairs += 1
+        nt.eq_(result, expectation[idx])
+
+    nt.eq_(pairs, len(expectation))
 
 if __name__ == "__main__":
     import logging
