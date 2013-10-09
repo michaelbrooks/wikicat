@@ -19,14 +19,12 @@ import time
 
 def import_dataset(dataset, version, language, limit=None):
 
-    models.set_table_names(version=version, language=language)
-
     incoming = datasets.get_collection(dataset=dataset, version=version, language=language)
 
     with incoming as data:
 
         before = time.time()
-        imported = models.insert_dataset(dataset, data, limit=limit)
+        imported = models.insert_dataset(data=data, dataset=dataset, version=version, language=language, limit=limit)
         after = time.time()
 
         if imported:

@@ -13,6 +13,7 @@ from confirm import query_yes_no
 
 import logging
 import sys
+from string import Template
 
 log = logging.getLogger('catdb.models')
 
@@ -80,24 +81,15 @@ class ArticleCategory(BaseModel):
     article = CharField(index=True, max_length=ARTICLE_MAX_LENGTH)
     category = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
 
-    class Meta:
-        db_table='article_categories'
-
 class CategoryCategory(BaseModel):
     id = PrimaryKeyField()
     narrower = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
     broader = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
 
-    class Meta:
-        db_table='category_categories'
-
 class CategoryLabel(BaseModel):
     id = PrimaryKeyField()
     category = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
     label = CharField(index=True, max_length=LABEL_MAX_LENGTH)
-
-    class Meta:
-        db_table='category_labels'
 
 model_mapping = {
     'article_categories': ArticleCategory,
@@ -105,22 +97,25 @@ model_mapping = {
     'category_labels': CategoryLabel
 }
 
-def set_table_names(version, language):
-    """
-    Customize the names of the database tables for this version and language.
-    :param version:
-    :param language:
-    :return:
-    """
-    version_code = version.replace(".", "_")
-    for m in model_mapping.values():
-        m._meta.db_table += "_%s" % version_code
+table_mapping = {
+    'article_categories': Template('article_categories_${version}'),
+    'category_categories': Template('category_categories_${version}'),
+    'category_labels': Template('category_labels_${version}')
+}
 
-def insert_dataset(dataset, records, limit=None):
-    if not dataset in model_mapping:
+def insert_dataset(data, dataset, version, language, limit=None):
+    if dataset not in model_mapping:
         raise Exception("No model for %s" % dataset)
 
     modelClass = model_mapping[dataset]
+
+    if dataset not in table_mapping:
+        raise Exception("No table name for %s" % dataset)
+
+    version_code = version.replace(".", "_")
+    tableNameTemplate = table_mapping[dataset]
+    modelClass._meta.db_table = tableNameTemplate.substitute(version=version_code)
+
     db = modelClass._meta.database
 
     if modelClass.table_exists():
@@ -145,7 +140,7 @@ def insert_dataset(dataset, records, limit=None):
 
     batch_counter = 0
     batch = []
-    for record in records:
+    for record in data:
         batch.append(record)
 
         if INSERT_BATCH_SIZE is not None and len(batch) >= INSERT_BATCH_SIZE:
@@ -210,7 +205,7 @@ def _test():
         {'category': u'Category:British_monarchs', 'label': u'British monarchs'},
     ]
 
-    imported = insert_dataset('category_labels', dataset)
+    imported = insert_dataset(data=dataset, dataset='category_labels', version='3.9', language='en')
 
     nt.assert_equal(len(dataset), imported)
 
