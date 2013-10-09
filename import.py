@@ -143,7 +143,7 @@ if __name__ == "__main__":
                        user=args.user, host=args.hostname,
                        port=args.port, password=password)
 
-    mysql.trap_warnings()
+    #mysql.trap_warnings()
 
     if not db:
         exit(1)

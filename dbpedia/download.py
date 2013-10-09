@@ -84,6 +84,7 @@ def _download(remote_name, local_name, chunk_size=CHUNK_SIZE):
                 chunk_counter += 1
 
                 sys.stdout.write(".")
+                sys.stdout.flush()
                 if chunk_counter % 60 == 0:
                     print
 

@@ -158,6 +158,7 @@ def insert_dataset(dataset, records, limit=None):
             batch_counter += 1
 
             sys.stdout.write('.')
+            sys.stdout.flush()
             if batch_counter % 60 == 0:
                 print
 
