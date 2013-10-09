@@ -5,6 +5,7 @@ triples provided by DBpedia. For example, url bases.
 
 __all__ = ['get_collection', 'DEFAULT_VERSION', 'DEFAULT_LANGUAGE']
 
+import urllib
 from resource import DBpediaResource
 from ntparser import NTripleParser
 
@@ -12,11 +13,14 @@ DEFAULT_VERSION = '3.9'
 DEFAULT_LANGUAGE = 'en'
 DEFAULT_URL_BASE = "http://dbpedia.org/resource/"
 
+def decode_url(url, version=DEFAULT_VERSION):
+    return urllib.unquote(url)
+
 def url_last_part(url, url_base=DEFAULT_URL_BASE):
     if not url.startswith(url_base):
         raise Exception("Unexpected URL %s" % url)
 
-    return url[len(url_base):]
+    return decode_url(url[len(url_base):])
 
 class ArticleCategoriesIterator(object):
     def __init__(self, records):
