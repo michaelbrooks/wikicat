@@ -165,8 +165,10 @@ def insert_dataset(dataset, records, limit=None):
             log.info("... inserted %d rows ...", imported)
             batch = []
 
-        if limit is not None and imported >= limit:
-            break
+            if limit is not None and imported >= limit:
+                print
+                print "Reached limit of %d" % limit
+                break
 
     print
 

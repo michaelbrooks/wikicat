@@ -125,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("--limit",
                         required=False,
                         default=None,
+                        type=int,
                         help="number of rows to insert, for debugging")
 
     args = parser.parse_args()
