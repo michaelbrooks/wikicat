@@ -108,6 +108,16 @@ class Category(BaseModel):
     id = PrimaryKeyField()
     name = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
 
+    def get_parents(self):
+        return Category.select() \
+            .join(CategoryCategory, on=CategoryCategory.broader) \
+            .where(CategoryCategory.narrower == self)
+
+    def get_children(self):
+        return Category.select() \
+            .join(CategoryCategory, on=CategoryCategory.narrower) \
+            .where(CategoryCategory.broader == self)
+
     class Meta:
         db_table = 'categories'
 
