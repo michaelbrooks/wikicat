@@ -6,6 +6,7 @@ and database connection information for where
 to store the imported data.
 """
 
+from dbpedia.resource import DBpediaResource
 from catdb import models
 import catdb.mysql as mysql
 from catdb.mysql import DEFAULT_PORT, DEFAULT_HOST, DEFAULT_USER, DEFAULT_PASSWORD
@@ -19,12 +20,17 @@ import time
 
 def import_dataset(dataset, version, language, limit=None):
 
-    incoming = datasets.get_collection(dataset=dataset, version=version, language=language)
+    models.create_tables(drop_if_exists=False)
+
+    resource = DBpediaResource(dataset=dataset, version=version, language=language)
+    incoming = datasets.get_collection(resource=resource)
+
+    versionInstance = models.dataset_version(version=resource.version, language=resource.language, date=resource.date)
 
     with incoming as data:
 
         before = time.time()
-        imported = models.insert_dataset(data=data, dataset=dataset, version=version, language=language, limit=limit)
+        imported = models.insert_dataset(data=data, dataset=dataset, version_instance=versionInstance, limit=limit)
         after = time.time()
 
         if imported:
