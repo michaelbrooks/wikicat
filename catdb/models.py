@@ -250,6 +250,10 @@ def insert_dataset(data, dataset, version_instance, limit=None):
     articles = {}
     reductions = 0
 
+    # disable autocommit and foreign key checks
+    db.execute_sql('SET autocommit=0')
+    db.execute_sql('SET foreign_key_checks=0')
+
     for record in data:
 
         # we may need to find a related category
@@ -327,6 +331,9 @@ def insert_dataset(data, dataset, version_instance, limit=None):
              cache_hits, cache_misses, relatives_created)
     log.info("Percent hits: %.1f%%; cache limit: %d; reductions: %d",
              100 * cache_hits / (cache_hits + cache_misses), CACHE_LIMIT, reductions)
+
+    db.execute_sql('SET autocommit=1')
+    db.execute_sql('SET foreign_key_checks=1')
 
     return imported
 
