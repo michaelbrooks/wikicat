@@ -191,47 +191,86 @@ def dataset_version(version, language, date):
         log.info("Created versions entry for %s %s", language, version)
         return DataSetVersion.create(version=version, language=language, date=date)
 
-def reduce_cache(cache):
-    desired_cache_size = round(CACHE_LIMIT * CACHE_CUT_FACTOR)
-    threshold = len(cache) - desired_cache_size
-    for k in cache.keys():
-        if cache[k][1] < threshold:
-            del cache[k]
+
+class Cache(object):
+
+    cache = {}
+    reductions = 0
+
+    relatives_created = 0 # number of new relatives created
+    cache_hits = 0 # number of times we had something in cache
+    cache_misses = 0 # number of times we COULD have had something in cache but didn't
+
+    def __init__(self, name, modelClass):
+        self.name = name
+        self.entityClass = modelClass
+
+    def reduce_cache(self):
+
+        desired_cache_size = round(CACHE_LIMIT * CACHE_CUT_FACTOR)
+        threshold = len(self.cache) - desired_cache_size
+
+        for k in self.cache.keys():
+            if self.cache[k][1] < threshold:
+                del self.cache[k]
+            else:
+                self.cache[k][1] -= threshold
+
+    def add_cache(self, key, value):
+        if CACHE_LIMIT:
+            self.cache[key] = [value, len(self.cache)]
+
+            if len(self.cache) >= CACHE_LIMIT:
+                self.reduce_cache()
+                self.reductions += 1
+
+        return value
+
+    def get_cache(self, key):
+        if CACHE_LIMIT:
+            pair = self.cache.get(key)
+            if pair:
+                return pair[0]
+
+        return None
+
+    def find_model(self, instanceName):
+        """Downloads or retrieves from cache"""
+
+        related = self.get_cache(instanceName)
+
+        if not related:
+            try:
+                related = self.entityClass.get(self.entityClass.name == instanceName)
+                self.cache_misses += 1
+            except DoesNotExist:
+                related = self.entityClass.create(name=instanceName)
+                self.relatives_created += 1
         else:
-            cache[k][1] -= threshold
+            self.cache_hits += 1
 
-def add_cache(cache, key, value):
-    if CACHE_LIMIT:
-        cache[key] = [value, len(cache)]
-    return value
+        self.add_cache(related.name, related)
 
-def get_cache(cache, key):
-    if CACHE_LIMIT:
-        pair = cache.get(key)
-        if pair:
-            return pair[0]
+        return related
 
-    return None
+    def fill_fields(self, record, modelClass):
+        """Attaches related models from this Cache to the record"""
 
-def get_related_model(relatedClass, instanceName, cache=None):
-    related = None
-    if cache:
-        related = get_cache(cache, instanceName)
+        for fname in record:
+            value = record[fname]
+            field = getattr(modelClass, fname)
 
-    if not related:
-        try:
-            related = relatedClass.get(relatedClass.name == instanceName)
-            source = 'database'
-        except DoesNotExist:
-            related = relatedClass.create(name=instanceName)
-            source = 'new'
-    else:
-        source = 'cache'
+            if isinstance(field, ForeignKeyField) and field.rel_model == self.entityClass:
 
-    if cache is not None:
-        add_cache(cache, related.name, related)
+                related = self.find_model(value)
+                record[fname] = related.id
 
-    return related, source
+    def print_stats(self):
+        log.info("%s cache \t hits: %d; misses: %d; new relatives: %d",
+                 self.name,
+                 self.cache_hits, self.cache_misses, self.relatives_created)
+        log.info("        \t hits: %.1f%%; cache limit: %d; reductions: %d",
+                 100 * self.cache_hits / (self.cache_hits + self.cache_misses), CACHE_LIMIT, self.reductions)
 
 def insert_dataset(data, dataset, version_instance, limit=None):
     if dataset not in model_mapping:
@@ -245,10 +284,6 @@ def insert_dataset(data, dataset, version_instance, limit=None):
 
     db = modelClass._meta.database
 
-    relatives_created = 0 # number of new relatives created
-    cache_hits = 0 # number of times we had something in cache
-    cache_misses = 0 # number of times we COULD have had something in cache but didn't
-
     # for actually counting number imported
     imported = 0
 
@@ -256,9 +291,8 @@ def insert_dataset(data, dataset, version_instance, limit=None):
     batch = []
 
     # cache structures
-    categories = {}
-    articles = {}
-    reductions = 0
+    categories = Cache('categories', Category)
+    articles = Cache('articles', Article)
 
     # disable autocommit and foreign key checks
     db.execute_sql('SET autocommit=0')
@@ -266,27 +300,8 @@ def insert_dataset(data, dataset, version_instance, limit=None):
 
     for record in data:
 
-        # we may need to find a related category
-        for fname in record:
-            value = record[fname]
-            field = getattr(modelClass, fname)
-
-            if isinstance(field, ForeignKeyField):
-
-                if field.rel_model == Category:
-                    cache = categories
-                elif field.rel_model == Article:
-                    cache = articles
-
-                related, source = get_related_model(field.rel_model, value, cache=cache)
-                record[fname] = related.id
-
-                if source == 'cache':
-                    cache_hits += 1
-                elif source == 'database':
-                    cache_misses += 1
-                elif source == 'new':
-                    relatives_created += 1
+        articles.fill_fields(record, modelClass)
+        categories.fill_fields(record, modelClass)
 
         # add the version reference to this record if needed
         if hasattr(modelClass, 'version'):
@@ -294,15 +309,6 @@ def insert_dataset(data, dataset, version_instance, limit=None):
 
         # this record is now ready for insertion when the batch is full
         batch.append(record)
-
-        # check the caches
-        if CACHE_LIMIT and len(categories) >= CACHE_LIMIT:
-            reduce_cache(categories)
-            reductions += 1
-
-        if CACHE_LIMIT and len(articles) >= CACHE_LIMIT:
-            reduce_cache(articles)
-            reductions += 1
 
         # is the batch full?
         if INSERT_BATCH_SIZE is not None and len(batch) >= INSERT_BATCH_SIZE:
@@ -337,10 +343,8 @@ def insert_dataset(data, dataset, version_instance, limit=None):
         db.commit()
         imported += len(batch)
 
-    log.info("Cache hits: %d; misses: %d; new relatives: %d",
-             cache_hits, cache_misses, relatives_created)
-    log.info("Percent hits: %.1f%%; cache limit: %d; reductions: %d",
-             100 * cache_hits / (cache_hits + cache_misses), CACHE_LIMIT, reductions)
+    articles.print_stats()
+    categories.print_stats()
 
     db.execute_sql('SET autocommit=1')
     db.execute_sql('SET foreign_key_checks=1')
