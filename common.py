@@ -70,14 +70,14 @@ def add_dataset_args(parser):
                         help="Which DBpedia language(s) to import")
 
 
-def get_database_password():
+def get_database_password(user, hostname, port):
     """
     Prompts the user to enter a password.
     :return:
     """
     import getpass
 
-    return getpass.getpass(prompt="Enter db password for %s@%s:%s: " %(args.user, args.hostname, args.port))
+    return getpass.getpass(prompt="Enter db password for %s@%s:%s: " %(user, hostname, port))
 
 
 def add_io_args(parser):
