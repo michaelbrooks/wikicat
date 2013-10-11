@@ -194,16 +194,24 @@ def dataset_version(version, language, date):
 
 class Cache(object):
 
-    cache = {}
-    reductions = 0
-
-    relatives_created = 0 # number of new relatives created
-    cache_hits = 0 # number of times we had something in cache
-    cache_misses = 0 # number of times we COULD have had something in cache but didn't
-
-    def __init__(self, name, modelClass):
+    def __init__(self, name, relatedClass, modelClass):
         self.name = name
-        self.entityClass = modelClass
+        self.modelClass = modelClass
+        self.relatedClass = relatedClass
+
+        self.cache = {}
+        self.reductions = 0
+        self.relatives_created = 0
+        self.cache_hits = 0
+        self.cache_misses = 0
+
+        # a list of field objects relevant to this cache
+        self.fields = []
+        for fname, field in modelClass._meta.fields.iteritems():
+            if isinstance(field, ForeignKeyField) and field.rel_model == self.relatedClass:
+                self.fields.append((fname, field))
+
+        self.start_batch()
 
     def reduce_cache(self):
 
@@ -219,10 +227,6 @@ class Cache(object):
     def add_cache(self, key, value):
         if CACHE_LIMIT:
             self.cache[key] = [value, len(self.cache)]
-
-            if len(self.cache) >= CACHE_LIMIT:
-                self.reduce_cache()
-                self.reductions += 1
 
         return value
 
@@ -241,10 +245,10 @@ class Cache(object):
 
         if not related:
             try:
-                related = self.entityClass.get(self.entityClass.name == instanceName)
+                related = self.relatedClass.get(self.relatedClass.name == instanceName)
                 self.cache_misses += 1
             except DoesNotExist:
-                related = self.entityClass.create(name=instanceName)
+                related = self.relatedClass.create(name=instanceName)
                 self.relatives_created += 1
         else:
             self.cache_hits += 1
@@ -253,24 +257,87 @@ class Cache(object):
 
         return related
 
-    def fill_fields(self, record, modelClass):
+    def start_batch(self):
+
+        # this list of new records in this batch
+        self.records = []
+
+        # a pre-cache - names of needed related models are placed here before being retrieved
+        self.to_lookup = set()
+
+    def fill_fields(self, record):
         """Attaches related models from this Cache to the record"""
 
-        for fname in record:
-            value = record[fname]
-            field = getattr(modelClass, fname)
+        for fname, field in self.fields:
+            if fname not in record:
+                continue
 
-            if isinstance(field, ForeignKeyField) and field.rel_model == self.entityClass:
+            relatedName = record[fname]
+            related = self.get_cache(relatedName)
 
-                related = self.find_model(value)
+            if not related:
+                # save them for later batch lookup
+                self.to_lookup.add(relatedName)
+                self.records.append(record)
+            else:
                 record[fname] = related.id
+                self.cache_hits += 1
+
+    def process_batch(self):
+        """
+        Checks if any related models needed by the current batch are on the server.
+        If not, creates them.
+        Matches the models in the batch with their related models.
+        :return:
+        """
+
+        if len(self.to_lookup) != 0:
+
+            # get all the items that weren't already in the cache
+            relatedModels = self.relatedClass.select()\
+                .where(self.relatedClass.name << list(self.to_lookup))
+
+            # cache them
+            for r in relatedModels:
+                self.add_cache(r.name, r)
+                self.cache_misses += 1
+
+            # now assign them all to the batched records
+            for record in self.records:
+                for fname, field in self.fields:
+                    if fname not in record:
+                        continue
+
+                    relatedName = record[fname]
+                    related = self.get_cache(relatedName)
+
+                    if not related:
+                        # ok fine we'll make you a new one
+                        related = self.relatedClass.create(name=relatedName)
+                        self.add_cache(related.name, related)
+                        self.relatives_created += 1
+
+                    record[fname] = related.id
+
+        # now we shrink the cache if needed, since we're done with these for now
+        if len(self.cache) >= CACHE_LIMIT:
+            self.reduce_cache()
+            self.reductions += 1
+
+
+        self.start_batch()
 
     def print_stats(self):
         log.info("%s cache \t hits: %d; misses: %d; new relatives: %d",
                  self.name,
                  self.cache_hits, self.cache_misses, self.relatives_created)
+        if self.cache_hits + self.cache_misses > 0:
+            percentHits = 100 * self.cache_hits / (self.cache_hits + self.cache_misses)
+        else:
+            percentHits = 0
+
         log.info("        \t hits: %.1f%%; cache limit: %d; reductions: %d",
-                 100 * self.cache_hits / (self.cache_hits + self.cache_misses), CACHE_LIMIT, self.reductions)
+                 percentHits, CACHE_LIMIT, self.reductions)
 
 def insert_dataset(data, dataset, version_instance, limit=None):
     if dataset not in model_mapping:
@@ -291,8 +358,8 @@ def insert_dataset(data, dataset, version_instance, limit=None):
     batch = []
 
     # cache structures
-    categories = Cache('categories', Category)
-    articles = Cache('articles', Article)
+    category_cache = Cache('categories', Category, modelClass)
+    article_cache = Cache('articles', Article, modelClass)
 
     # disable autocommit and foreign key checks
     db.execute_sql('SET autocommit=0')
@@ -300,8 +367,8 @@ def insert_dataset(data, dataset, version_instance, limit=None):
 
     for record in data:
 
-        articles.fill_fields(record, modelClass)
-        categories.fill_fields(record, modelClass)
+        article_cache.fill_fields(record)
+        category_cache.fill_fields(record)
 
         # add the version reference to this record if needed
         if hasattr(modelClass, 'version'):
@@ -312,6 +379,8 @@ def insert_dataset(data, dataset, version_instance, limit=None):
 
         # is the batch full?
         if INSERT_BATCH_SIZE is not None and len(batch) >= INSERT_BATCH_SIZE:
+            article_cache.process_batch()
+            category_cache.process_batch()
 
             # generate and run the sql and parameters for the batch insert
             sql, params = modelClass.generate_batch_insert(batch)
@@ -338,13 +407,16 @@ def insert_dataset(data, dataset, version_instance, limit=None):
 
     # just checking if we need to finish up
     if len(batch):
+        article_cache.process_batch()
+        category_cache.process_batch()
+
         sql, params = modelClass.generate_batch_insert(batch)
         db.execute_sql(sql, params)
         db.commit()
         imported += len(batch)
 
-    articles.print_stats()
-    categories.print_stats()
+    article_cache.print_stats()
+    category_cache.print_stats()
 
     db.execute_sql('SET autocommit=1')
     db.execute_sql('SET foreign_key_checks=1')
