@@ -14,7 +14,7 @@ USERNAME=$1
 DATABASE=$2
 
 time \
-    python import.py \
+    python import_batch.py \
         --dataset $DATASETS \
         --version $VERSIONS \
         --lang $LANGUAGES \
