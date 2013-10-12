@@ -7,7 +7,7 @@ to store the imported data.
 """
 
 from dbpedia.resource import DBpediaResource
-from catdb import models
+from catdb import models, insert
 import catdb.mysql as mysql
 from catdb.mysql import DEFAULT_PASSWORD
 
@@ -30,7 +30,7 @@ def import_dataset(dataset, version, language, limit=None):
     with incoming as data:
 
         before = time.time()
-        imported = models.insert_dataset(data=data, dataset=dataset, version_instance=versionInstance, limit=limit)
+        imported = insert.insert_dataset(data=data, dataset=dataset, version_instance=versionInstance, limit=limit)
         after = time.time()
 
         if imported:

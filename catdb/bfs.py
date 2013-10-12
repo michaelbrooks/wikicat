@@ -4,7 +4,7 @@ the category hierarchy in the MySQL database.
 """
 
 from collections import deque
-from models import Category, CategoryCategory
+from models import Category
 
 class BFSIterator(object):
 
@@ -66,7 +66,7 @@ def ancestors(rootCategory, norepeats=False):
 
 def _test():
     import nose.tools as nt
-    import mysql, models
+    import mysql, models, insert
 
     db = mysql.connect('wikicat', user='root', host='localhost', password='')
 
@@ -93,7 +93,7 @@ def _test():
     ]
 
     datasetVersion = models.dataset_version(version='3.9', language='en', date='2013-04-03')
-    imported = models.insert_dataset(data=dataset, dataset='category_categories', version_instance=datasetVersion)
+    imported = insert.insert_dataset(data=dataset, dataset='category_categories', version_instance=datasetVersion)
     nt.eq_(imported, len(dataset))
 
     cats = Category.get(Category.name=='Cats')
@@ -115,7 +115,7 @@ def _test():
         {'broader': u'Reptiles', 'narrower': u'Monotremes'}
     ]
 
-    imported = models.insert_dataset(data=dataset, dataset='category_categories', version_instance=datasetVersion)
+    imported = insert.insert_dataset(data=dataset, dataset='category_categories', version_instance=datasetVersion)
     nt.eq_(imported, len(dataset))
 
     monotremes = Category.get(Category.name=='Monotremes')
@@ -145,7 +145,7 @@ def _test():
         {'broader': u'Pets', 'narrower': u'Dogs'},
         {'broader': u'Pets', 'narrower': u'Cats'},
     ]
-    imported = models.insert_dataset(data=dataset, dataset='category_categories', version_instance=datasetVersion)
+    imported = insert.insert_dataset(data=dataset, dataset='category_categories', version_instance=datasetVersion)
     nt.eq_(imported, len(dataset))
 
     lizards = Category.get(Category.name=='Lizards')
