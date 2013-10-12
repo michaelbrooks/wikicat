@@ -74,6 +74,7 @@ class Cache(object):
     def fill_fields(self, record):
         """Attaches related models from this Cache to the record"""
 
+        save_me_for_later = False
         for fname, field in self.fields:
             if fname not in record:
                 continue
@@ -84,10 +85,13 @@ class Cache(object):
             if not related:
                 # save them for later batch lookup
                 self.to_lookup.add(relatedName)
-                self.records.append(record)
+                save_me_for_later = True
             else:
                 record[fname] = related['id']
                 self.cache_hits += 1
+
+        if save_me_for_later:
+            self.records.append(record)
 
     def process_batch(self):
         """
@@ -155,7 +159,6 @@ class Cache(object):
         if len(self.cache) >= CACHE_LIMIT:
             self.reduce_cache()
             self.reductions += 1
-
 
         self.start_batch()
 
