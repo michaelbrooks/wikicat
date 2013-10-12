@@ -5,6 +5,7 @@ a large batch of data.
 
 import sys
 
+import models
 from models import Category, Article, model_mapping
 from peewee import ForeignKeyField
 
@@ -19,10 +20,11 @@ log = logging.getLogger('catdb.insert')
 
 class Cache(object):
 
-    def __init__(self, name, relatedClass, modelClass):
+    def __init__(self, name, relatedClass, modelClass, lengthLimit = None):
         self.name = name
         self.modelClass = modelClass
         self.relatedClass = relatedClass
+        self.lengthLimit = lengthLimit
 
         self.cache = {}
         self.reductions = 0
@@ -71,27 +73,28 @@ class Cache(object):
         # a pre-cache - names of needed related models are placed here before being retrieved
         self.to_lookup = set()
 
+    def _translate(self, name):
+        if self.lengthLimit is not None:
+            return name[:self.lengthLimit]
+        return name
+
     def fill_fields(self, record):
         """Attaches related models from this Cache to the record"""
 
-        save_me_for_later = False
         for fname, field in self.fields:
             if fname not in record:
                 continue
 
-            relatedName = record[fname]
+            relatedName = self._translate(record[fname])
             related = self.get_cache(relatedName)
 
             if not related:
                 # save them for later batch lookup
                 self.to_lookup.add(relatedName)
-                save_me_for_later = True
+                self.records.append((record, fname))
             else:
                 record[fname] = related['id']
                 self.cache_hits += 1
-
-        if save_me_for_later:
-            self.records.append(record)
 
     def process_batch(self):
         """
@@ -102,6 +105,7 @@ class Cache(object):
         """
 
         if len(self.to_lookup) != 0:
+            db = self.relatedClass._meta.database
 
             # get all the items that weren't already in the cache
             relatedModels = self.relatedClass.select() \
@@ -128,8 +132,8 @@ class Cache(object):
 
                 # batch insert these
                 sql, params = self.relatedClass.generate_batch_insert(newRelated)
-                cursor = self.relatedClass._meta.database.execute_sql(sql, params)
-                idSequence = self.relatedClass._meta.database.last_insert_id(cursor, self.relatedClass)
+                cursor = db.execute_sql(sql, params)
+                idSequence = db.last_insert_id(cursor, self.relatedClass)
                 # the ids are sequential from this base
 
                 # get/generate the id numbers (that's all we needed anyway)
@@ -141,19 +145,18 @@ class Cache(object):
                     idSequence += 1
                     self.relatives_created += 1
 
+                db.commit()
+
             # now assign them all to the batched records
-            for record in self.records:
-                for fname, field in self.fields:
-                    if fname not in record:
-                        continue
+            for record, fname in self.records:
 
-                    relatedName = record[fname]
-                    related = self.get_cache(relatedName)
+                relatedName = self._translate(record[fname])
+                related = self.get_cache(relatedName)
 
-                    if not related:
-                        raise Exception("What? You can't find %s?" % relatedName)
+                if not related:
+                    raise Exception("What? You can't find %s?" % relatedName)
 
-                    record[fname] = related['id']
+                record[fname] = related['id']
 
         # now we shrink the cache if needed, since we're done with these for now
         if len(self.cache) >= CACHE_LIMIT:
@@ -177,7 +180,7 @@ class Cache(object):
 def insert_dataset(data, dataset, version_instance, limit=None):
     if dataset not in model_mapping:
         raise Exception("No model for %s" % dataset)
-
+    # if dataset == 'article_categories': limit = 20000
     modelClass = model_mapping[dataset]
 
     # First thing we clear the instances associated with this version
@@ -193,8 +196,8 @@ def insert_dataset(data, dataset, version_instance, limit=None):
     batch = []
 
     # cache structures
-    category_cache = Cache('categories', Category, modelClass)
-    article_cache = Cache('articles', Article, modelClass)
+    category_cache = Cache('categories', Category, modelClass, models.ARTICLE_MAX_LENGTH)
+    article_cache = Cache('articles', Article, modelClass, models.CATEGORY_MAX_LENGTH)
 
     # disable autocommit and foreign key checks
     db.execute_sql('SET autocommit=0')

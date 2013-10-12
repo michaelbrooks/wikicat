@@ -34,7 +34,7 @@ def import_dataset(dataset, version, language, limit=None):
         after = time.time()
 
         if imported:
-            print "Imported %d category_labels in %f seconds" % (imported, after - before)
+            print "Imported %d %s in %f seconds" % (imported, dataset, after - before)
 
 
 if __name__ == "__main__":
