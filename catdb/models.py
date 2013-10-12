@@ -25,7 +25,7 @@ database_proxy = Proxy()  # Create a proxy for our db.
 INSERT_BATCH_SIZE = 10000
 
 # use 0 for no cache
-CACHE_LIMIT = 1000
+CACHE_LIMIT = 2000
 CACHE_CUT_FACTOR = 0.5
 
 confirm_replacements = True
@@ -238,25 +238,6 @@ class Cache(object):
 
         return None
 
-    def find_model(self, instanceName):
-        """Downloads or retrieves from cache"""
-
-        related = self.get_cache(instanceName)
-
-        if not related:
-            try:
-                related = self.relatedClass.get(self.relatedClass.name == instanceName)
-                self.cache_misses += 1
-            except DoesNotExist:
-                related = self.relatedClass.create(name=instanceName)
-                self.relatives_created += 1
-        else:
-            self.cache_hits += 1
-
-        self.add_cache(related.name, related)
-
-        return related
-
     def start_batch(self):
 
         # this list of new records in this batch
@@ -280,7 +261,7 @@ class Cache(object):
                 self.to_lookup.add(relatedName)
                 self.records.append(record)
             else:
-                record[fname] = related.id
+                record[fname] = related['id']
                 self.cache_hits += 1
 
     def process_batch(self):
@@ -295,12 +276,41 @@ class Cache(object):
 
             # get all the items that weren't already in the cache
             relatedModels = self.relatedClass.select()\
-                .where(self.relatedClass.name << list(self.to_lookup))
+                .where(self.relatedClass.name << list(self.to_lookup))\
+                .dicts()
 
             # cache them
-            for r in relatedModels:
-                self.add_cache(r.name, r)
+            for relatedDict in relatedModels:
+                name = relatedDict['name']
+
+                self.add_cache(name, relatedDict)
+                self.to_lookup.remove(name)
+
                 self.cache_misses += 1
+
+            # now, do we need to create any?
+            if len(self.to_lookup) > 0:
+                # make a list out of the map for reliability
+                to_lookup = list(self.to_lookup)
+
+                newRelated = [{
+                    'name': name
+                } for name in to_lookup]
+
+                # batch insert these
+                sql, params = self.relatedClass.generate_batch_insert(newRelated)
+                cursor = self.relatedClass._meta.database.execute_sql(sql, params)
+                idSequence = self.relatedClass._meta.database.last_insert_id(cursor, self.relatedClass)
+                # the ids are sequential from this base
+
+                # get/generate the id numbers (that's all we needed anyway)
+                for name in self.to_lookup:
+                    self.add_cache(name, {
+                        'id': idSequence,
+                        'name': name
+                    })
+                    idSequence += 1
+                    self.relatives_created += 1
 
             # now assign them all to the batched records
             for record in self.records:
@@ -312,12 +322,9 @@ class Cache(object):
                     related = self.get_cache(relatedName)
 
                     if not related:
-                        # ok fine we'll make you a new one
-                        related = self.relatedClass.create(name=relatedName)
-                        self.add_cache(related.name, related)
-                        self.relatives_created += 1
+                        raise Exception("What? You can't find %s?" % relatedName)
 
-                    record[fname] = related.id
+                    record[fname] = related['id']
 
         # now we shrink the cache if needed, since we're done with these for now
         if len(self.cache) >= CACHE_LIMIT:
