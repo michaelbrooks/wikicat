@@ -109,7 +109,7 @@ def copy_subset(root_name, depth, db_from, db_to):
     models.database_proxy.initialize(db_from)
 
     max_depth = 0
-    
+
     before = time.time()
     last_time = before
 
@@ -150,10 +150,10 @@ def copy_subset(root_name, depth, db_from, db_to):
             batch.submit()
             db_to.commit()
 
-            if time.time() - last_time > 30:
+            if time.time() - last_time > 15:
                 print "Copied %d versions with %d categories (%d labels); %d articles; %d article_categories, and %d category_categories" \
                       % (batch.num_versions, batch.num_categories, batch.num_category_labels, batch.num_articles, batch.num_article_categories, batch.num_category_categories)
-                print "Time taken: %fs. Maximum depth %d. %d batches." %(after - before, max_depth, batch.submissions)
+                print "Time taken: %fs. Maximum depth %d. %d batches." %(last_time - before, max_depth, batch.submissions)
                 sys.stdout.flush
 
                 last_time = time.time()
@@ -161,11 +161,11 @@ def copy_subset(root_name, depth, db_from, db_to):
     batch.submit()
     db_to.commit()
 
-    after = time.time()
+    last_time = time.time()
 
     print "Copied %d versions with %d categories (%d labels); %d articles; %d article_categories, and %d category_categories" \
           % (batch.num_versions, batch.num_categories, batch.num_category_labels, batch.num_articles, batch.num_article_categories, batch.num_category_categories)
-    print "Time taken: %fs. Maximum depth %d. %d batches." %(after - before, max_depth, batch.submissions)
+    print "Time taken: %fs. Maximum depth %d. %d batches." %(last_time - before, max_depth, batch.submissions)
 
 if __name__ == "__main__":
     import argparse
