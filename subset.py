@@ -109,9 +109,9 @@ def copy_subset(root_name, depth, db_from, db_to):
     models.database_proxy.initialize(db_from)
 
     max_depth = 0
-    num_categories_double_referenced = 0
-
+    
     before = time.time()
+    last_time = before
 
     batch = Batcher(db_from, db_to)
 
@@ -150,12 +150,13 @@ def copy_subset(root_name, depth, db_from, db_to):
             batch.submit()
             db_to.commit()
 
-            after = time.time()
+            if time.time() - last_time > 30:
+                print "Copied %d versions with %d categories (%d labels); %d articles; %d article_categories, and %d category_categories" \
+                      % (batch.num_versions, batch.num_categories, batch.num_category_labels, batch.num_articles, batch.num_article_categories, batch.num_category_categories)
+                print "Time taken: %fs. Maximum depth %d. %d batches." %(after - before, max_depth, batch.submissions)
+                sys.stdout.flush
 
-            print "Copied %d versions with %d categories (%d labels); %d articles; %d article_categories, and %d category_categories" \
-                  % (batch.num_versions, batch.num_categories, batch.num_category_labels, batch.num_articles, batch.num_article_categories, batch.num_category_categories)
-            print "Time taken: %fs. Maximum depth %d. %d batches." %(after - before, max_depth, batch.submissions)
-            sys.stdout.flush
+                last_time = time.time()
 
     batch.submit()
     db_to.commit()
