@@ -162,7 +162,6 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Copy a sample into a second database.")
-    common.add_dataset_args(parser)
     common.add_database_args(parser)
     common.add_io_args(parser)
 
@@ -190,6 +189,9 @@ if __name__ == "__main__":
         password = common.get_database_password()
     else:
         password = DEFAULT_PASSWORD
+
+    if args.database == args.target:
+        print "Source and target database cannot be the same."
 
     db = mysql.connect(database=args.database,
                        user=args.user, host=args.hostname,
