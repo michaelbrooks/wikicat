@@ -186,7 +186,7 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.WARN)
 
     if args.password:
-        password = common.get_database_password()
+        password = common.get_database_password(args.user, args.hostname, args.port)
     else:
         password = DEFAULT_PASSWORD
 
