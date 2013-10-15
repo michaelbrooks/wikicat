@@ -20,7 +20,7 @@ import common
 
 class Batcher(object):
 
-    def __init__(self, db_from, db_to, limit = 1000):
+    def __init__(self, db_from, db_to, limit = 10000):
         self.db_from = db_from
         self.db_to = db_to
 
@@ -148,6 +148,12 @@ def copy_subset(root_name, depth, db_from, db_to):
         if batch.is_full():
             batch.submit()
             db_to.commit()
+
+            after = time.time()
+
+            print "Copied %d versions with %d categories (%d labels); %d articles; %d article_categories, and %d category_categories" \
+                  % (batch.num_versions, batch.num_categories, batch.num_category_labels, batch.num_articles, batch.num_article_categories, batch.num_category_categories)
+            print "Time taken: %fs. Maximum depth %d. %d batches." %(after - before, max_depth, batch.submissions)
 
     batch.submit()
     db_to.commit()
