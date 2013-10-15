@@ -20,7 +20,7 @@ import time
 
 def import_dataset(dataset, version, language, limit=None):
 
-    models.create_tables(drop_if_exists=False)
+    models.create_tables(drop_if_exists=False, set_engine='InnoDB')
 
     resource = DBpediaResource(dataset=dataset, version=version, language=language)
     incoming = datasets.get_collection(resource=resource)

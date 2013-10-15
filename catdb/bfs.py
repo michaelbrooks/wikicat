@@ -8,43 +8,53 @@ from models import Category
 
 class BFSIterator(object):
 
-    def __init__(self, root, direction="down", norepeats=False):
-        self.queue = deque([root])
+    def __init__(self, root, direction="down", norepeats=False, max_levels=None, version=None):
+        self.direction = direction
         self.processed = deque()
         self.iterPointer = -1
 
+        self.max_levels = max_levels
         self.norepeats = norepeats
+        self.version = version
+
+        self._init_queue(root)
 
         if norepeats:
             self.checked = set()
 
-        self.direction = direction
-
     def __iter__(self):
         return self
 
-    def _traverse(self):
-        if not len(self.queue):
-            return
+    def _init_queue(self, root):
+        self.queue = deque([(root, 0)])
 
-        curr = self.queue.popleft()
-
+    def _get_next_level(self, current):
         if self.direction == 'down':
-            nextLevel = curr.get_children()
+            return current.get_children(version=self.version)
         elif self.direction == 'up':
-            nextLevel = curr.get_parents()
+            return current.get_parents(version=self.version)
         else:
             raise Exception("Unknown direction %s" % self.direction)
 
-        if self.norepeats:
-            for node in nextLevel:
-                if node.id not in self.checked:
-                    self.checked.add(node.id)
-                    self.queue.append(node)
-        else:
-            self.queue.extend(nextLevel)
+    def _traverse(self):
 
-        self.processed.append(curr)
+        if not len(self.queue):
+            return
+
+        curr, level = self.queue.popleft()
+
+        if self.max_levels is None or level < self.max_levels:
+            nextLevel = self._get_next_level(curr)
+
+            if self.norepeats:
+                for node in nextLevel:
+                    if node.id not in self.checked:
+                        self.checked.add(node.id)
+                        self.queue.append((node, level + 1))
+            else:
+                self.queue.extend([(n, level + 1) for n in nextLevel])
+
+        self.processed.append((curr, level))
 
     def next(self):
         self.iterPointer += 1
@@ -55,14 +65,46 @@ class BFSIterator(object):
         if self.iterPointer >= len(self.processed):
             raise StopIteration
 
-        return self.processed[self.iterPointer]
+        node, level = self.processed[self.iterPointer]
+        self.current_level = level
+        return node
 
-def descendants(rootCategory, norepeats=False):
-    return BFSIterator(rootCategory, direction='down', norepeats=norepeats)
+class BFSLinkIterator(BFSIterator):
 
-def ancestors(rootCategory, norepeats=False):
-    return BFSIterator(rootCategory, direction='up', norepeats=norepeats)
+    def _init_queue(self, root):
+        initialLinks = root.get_category_categories(direction=self.direction, version=self.version)
+        self.queue = deque((link, 0) for link in initialLinks)
 
+    def _get_next_level(self, currentLink):
+        if self.direction == 'down':
+            node = currentLink.narrower
+        elif self.direction == 'up':
+            node = currentLink.broader
+        else:
+            raise Exception("Unknown direction %s" % self.direction)
+
+        return node.get_category_categories(direction=self.direction, version=self.version)
+
+
+def descendants(rootCategory, norepeats=False, max_levels=None, version=None):
+    return BFSIterator(rootCategory,
+                       direction='down', norepeats=norepeats,
+                       max_levels=max_levels, version=version)
+
+def ancestors(rootCategory, norepeats=False, max_levels=None, version=None):
+    return BFSIterator(rootCategory,
+                       direction='up', norepeats=norepeats,
+                       max_levels=max_levels, version=version)
+
+def descendant_links(rootCategory, norepeats=False, max_levels=None, version=None):
+    return BFSLinkIterator(rootCategory,
+                           direction='down', norepeats=norepeats,
+                           max_levels=max_levels, version=version)
+
+def ancestor_links(rootCategory, norepeats=False, max_levels=None, version=None):
+    return BFSLinkIterator(rootCategory,
+                           direction='up', norepeats=norepeats,
+                           max_levels=max_levels, version=version)
 
 def _test():
     import nose.tools as nt
@@ -105,6 +147,27 @@ def _test():
     eagleParents = [e.name for e in ancestors(eagle)]
     eagleParents.sort()
     nt.eq_(['Animals', 'Birds', 'Eagles'], eagleParents)
+
+    mammals = Category.get(Category.name=='Mammals')
+    mammalChildren = [m.name for m in descendants(mammals, max_levels=0)]
+    mammalChildren.sort()
+    nt.eq_(['Mammals'], mammalChildren)
+
+    mammalChildren = [m.name for m in descendants(mammals, max_levels=1)]
+    mammalChildren.sort()
+    nt.eq_(['Cats', 'Dogs', 'Mammals'], mammalChildren)
+
+    mammalChildren = [m.name for m in descendants(mammals, max_levels=2)]
+    mammalChildren.sort()
+    nt.eq_(['Cats', 'Dogs', 'Lions', 'Mammals', 'Tigers'], mammalChildren)
+
+    links = [(f.broader.name, f.narrower.name) for f in descendant_links(mammals)]
+    links.sort()
+    nt.eq_([(u'Cats', u'Lions'), (u'Cats', u'Tigers'), (u'Mammals', u'Cats'), (u'Mammals', u'Dogs')], links)
+
+    links = [(f.broader.name, f.narrower.name) for f in descendant_links(mammals, max_levels=0)]
+    links.sort()
+    nt.eq_([(u'Mammals', u'Cats'), (u'Mammals', u'Dogs')], links)
 
     # now add a node with two parents
     dataset = [

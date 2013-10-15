@@ -31,7 +31,19 @@ class BaseModel(Model):
         database = database_proxy  # Use proxy for our DB.
 
     @classmethod
-    def generate_batch_insert(cls, dictionaries):
+    def batch_insert(cls, dictionaries, ignore=False):
+        sql, params = cls.generate_batch_insert(dictionaries, ignore=ignore)
+        if sql:
+            return cls._meta.database.execute_sql(sql, params)
+        return None
+
+    @classmethod
+    def make_dict(cls, model):
+        #for fname, field in cls._meta.fields.iteritems()
+        pass
+
+    @classmethod
+    def generate_batch_insert(cls, dictionaries, ignore=False):
         """
         Generates a bulk insert statement a list of dictionaries
         representing model data.
@@ -40,7 +52,7 @@ class BaseModel(Model):
         """
 
         if len(dictionaries) == 0:
-            return None
+            return None, None
 
         # get an example dictionary
         example = dictionaries[0]
@@ -48,7 +60,10 @@ class BaseModel(Model):
         quote_char = cls._meta.database.quote_char
         interpolation = cls._meta.database.interpolation
 
-        parts = ['INSERT INTO %s%s%s' % (quote_char, cls._meta.db_table, quote_char)]
+        if ignore:
+            parts = ['INSERT IGNORE INTO %s%s%s' % (quote_char, cls._meta.db_table, quote_char)]
+        else:
+            parts = ['INSERT INTO %s%s%s' % (quote_char, cls._meta.db_table, quote_char)]
         columns = []
         for fname, field in cls._meta.fields.iteritems():
             if fname in example:
@@ -101,15 +116,68 @@ class Category(BaseModel):
     id = PrimaryKeyField()
     name = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
 
-    def get_parents(self):
-        return Category.select() \
+    def get_parents(self, version=None):
+        q = Category.select() \
             .join(CategoryCategory, on=CategoryCategory.broader) \
             .where(CategoryCategory.narrower == self)
 
-    def get_children(self):
-        return Category.select() \
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+    def get_children(self, version=None):
+        q = Category.select() \
             .join(CategoryCategory, on=CategoryCategory.narrower) \
             .where(CategoryCategory.broader == self)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+    def get_articles(self, version=None):
+        q = Article.select() \
+            .join(ArticleCategory, on=ArticleCategory.article) \
+            .where(ArticleCategory.category == self)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+    def get_article_categories(self, version=None):
+        q = ArticleCategory.select() \
+            .where(ArticleCategory.category == self)
+
+        if version:
+            q.where(ArticleCategory.version == version)
+
+        return q
+
+    def get_category_categories(self, version=None, direction="down"):
+        q = CategoryCategory.select()
+
+        if direction == 'up':
+            q = q.where(CategoryCategory.narrower == self)
+        elif direction == 'down':
+            q = q.where(CategoryCategory.broader == self)
+        else:
+            raise Exception("Unknown direction %s" % direction)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+    def get_labels(self, version=None):
+        q = CategoryLabel.select() \
+            .where(CategoryLabel.category == self)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
 
     class Meta:
         db_table = 'categories'
@@ -126,8 +194,8 @@ class CategoryLabel(VersionedModel):
         db_table = 'category_labels'
 
 class ArticleCategory(VersionedModel):
-    article = ForeignKeyField(Article)
-    category = ForeignKeyField(Category)
+    article = ForeignKeyField(Article, related_name="article_categories")
+    category = ForeignKeyField(Category, related_name="article_categories")
 
     class Meta:
         db_table = 'article_categories'
@@ -145,7 +213,7 @@ model_mapping = {
     'category_labels': CategoryLabel
 }
 
-def create_tables(drop_if_exists=False):
+def create_tables(drop_if_exists=False, set_engine=None):
 
     #foreign key dependencies
     modelClasses = [CategoryLabel, ArticleCategory, CategoryCategory, Article, Category, DataSetVersion]
@@ -173,6 +241,11 @@ def create_tables(drop_if_exists=False):
 
     for modelClass in modelClasses:
         if not modelClass.table_exists():
+
+            if set_engine:
+                db = modelClass._meta.database
+                db.execute_sql('SET storage_engine=%s', params=[set_engine])
+
             # create the table
             modelClass.create_table()
 
