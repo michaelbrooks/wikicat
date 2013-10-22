@@ -6,7 +6,7 @@ article_categories.
 __all__ = ['ArticleCategory', 'CategoryCategory', 'CategoryLabel',
            'database_proxy', 'use_confirmations', 'set_model_versions']
 
-from peewee import ForeignKeyField, CharField, PrimaryKeyField, DateField
+from peewee import ForeignKeyField, CharField, PrimaryKeyField, DateField, IntegerField
 from peewee import Model, DoesNotExist
 from playhouse.proxy import Proxy
 from confirm import query_yes_no
@@ -207,6 +207,14 @@ class CategoryCategory(VersionedModel):
     class Meta:
         db_table = 'category_categories'
 
+class CategoryStats(VersionedModel):
+    category = ForeignKeyField(Category, related_name="stats")
+    num_categories = IntegerField(null=True, default=None)
+    num_articles = IntegerField(null=True, default=None)
+
+    class Meta:
+        db_table = 'category_stats'
+
 model_mapping = {
     'article_categories': ArticleCategory,
     'category_categories': CategoryCategory,
@@ -244,10 +252,37 @@ def create_tables(drop_if_exists=False, set_engine=None):
 
             if set_engine:
                 db = modelClass._meta.database
-                db.execute_sql('SET storage_engine=%s', params=[set_engine])
+                db.execute_sql('SET default_storage_engine=%s', params=[set_engine])
 
             # create the table
             modelClass.create_table()
+
+def create_table(modelClass, drop_if_exists=False, set_engine=None):
+
+    if drop_if_exists:
+        db = modelClass._meta.database
+        if modelClass.table_exists():
+            table_name = modelClass._meta.db_table
+            database = db.database
+
+            if confirm_replacements:
+                confirm = query_yes_no("Replace existing table `%s` on database `%s`?" %(table_name, database),
+                                       default='no')
+                if not confirm:
+                    return
+
+            # drop the table first
+            modelClass.drop_table()
+
+    if not modelClass.table_exists():
+
+        if set_engine:
+            db = modelClass._meta.database
+            db.execute_sql('SET default_storage_engine=%s', params=[set_engine])
+
+        # create the table
+        modelClass.create_table()
+
 
 def dataset_version(version, language, date):
     # find or create an entry for this dataset version
