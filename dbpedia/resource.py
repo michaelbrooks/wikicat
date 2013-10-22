@@ -29,6 +29,26 @@ version_names = [
     '2.0'
 ]
 
+# for 3.7+, see urls like: http://wiki.dbpedia.org/DumpDatesDBpedia39
+# for pre-3.7, see download page
+# These are dates for English only
+# Where there is a listed dump start and end, this date is the end date
+version_dates = {
+    '3.9': '2013-04-03',
+    '3.8': '2012-06-01',
+    '3.7': '2011-07-22',
+    '3.6': '2010-10-11',
+    '3.5.1': '2010-03-16',
+    '3.5': '2010-03-16',
+    '3.4': '2009-09-24',
+    '3.3': '2009-05-20',
+    '3.2': '2008-10-08',
+    '3.1': '2008-07-24',
+    '3.0': '2008-01-03',
+    '3.0rc': '2007-10-23',
+    '2.0': '2007-07-16'
+}
+
 # The size of the buffer for bz2 decompression
 BZ2_BUFFER_SIZE = 10 * 1024
 
@@ -55,6 +75,7 @@ class DBpediaResource(object):
         self.version = version
         self.language = language
         self.format = format
+        self.date = version_dates.get(self.version) # defaults to None
 
     def get_file(self):
         """

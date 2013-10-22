@@ -41,7 +41,7 @@ def trap_warnings():
 def _test():
     import nose.tools as nt
 
-    db = connect('mysql', user='root', host='localhost', password='')
+    db = connect('wikicat', user='root', host='localhost', password='')
 
     nt.ok_(db)
 

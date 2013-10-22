@@ -6,14 +6,12 @@ article_categories.
 __all__ = ['ArticleCategory', 'CategoryCategory', 'CategoryLabel',
            'database_proxy', 'use_confirmations', 'set_model_versions']
 
-from peewee import IntegerField, CharField, PrimaryKeyField
-from peewee import Model
+from peewee import ForeignKeyField, CharField, PrimaryKeyField, DateField
+from peewee import Model, DoesNotExist
 from playhouse.proxy import Proxy
 from confirm import query_yes_no
 
 import logging
-import sys
-from string import Template
 
 log = logging.getLogger('catdb.models')
 
@@ -22,8 +20,6 @@ CATEGORY_MAX_LENGTH = 200
 LABEL_MAX_LENGTH = 200
 
 database_proxy = Proxy()  # Create a proxy for our db.
-
-INSERT_BATCH_SIZE = 10000
 
 confirm_replacements = True
 def use_confirmations(confirm):
@@ -35,7 +31,19 @@ class BaseModel(Model):
         database = database_proxy  # Use proxy for our DB.
 
     @classmethod
-    def generate_batch_insert(cls, dictionaries):
+    def batch_insert(cls, dictionaries, ignore=False):
+        sql, params = cls.generate_batch_insert(dictionaries, ignore=ignore)
+        if sql:
+            return cls._meta.database.execute_sql(sql, params)
+        return None
+
+    @classmethod
+    def make_dict(cls, model):
+        #for fname, field in cls._meta.fields.iteritems()
+        pass
+
+    @classmethod
+    def generate_batch_insert(cls, dictionaries, ignore=False):
         """
         Generates a bulk insert statement a list of dictionaries
         representing model data.
@@ -44,7 +52,7 @@ class BaseModel(Model):
         """
 
         if len(dictionaries) == 0:
-            return None
+            return None, None
 
         # get an example dictionary
         example = dictionaries[0]
@@ -52,11 +60,17 @@ class BaseModel(Model):
         quote_char = cls._meta.database.quote_char
         interpolation = cls._meta.database.interpolation
 
-        parts = ['INSERT INTO %s%s%s' % (quote_char, cls._meta.db_table, quote_char)]
-        fields = [f for f in cls._meta.fields if f in example]
+        if ignore:
+            parts = ['INSERT IGNORE INTO %s%s%s' % (quote_char, cls._meta.db_table, quote_char)]
+        else:
+            parts = ['INSERT INTO %s%s%s' % (quote_char, cls._meta.db_table, quote_char)]
+        columns = []
+        for fname, field in cls._meta.fields.iteritems():
+            if fname in example:
+                columns.append(field.db_column)
 
         parts.append("(")
-        parts.append(",".join('%s%s%s' % (quote_char, f, quote_char) for f in fields))
+        parts.append(",".join('%s%s%s' % (quote_char, f, quote_char) for f in columns))
         parts.append(")")
 
         parts.append("VALUES")
@@ -65,8 +79,12 @@ class BaseModel(Model):
 
         settings = []
         for d in dictionaries:
+            values = []
 
-            values = [d[f] for f in fields]
+            for fname in cls._meta.fields:
+                if fname in d:
+                    values.append(d[fname])
+
             placeholder = ",".join(interpolation for v in values)
             settings.append("(%s)" % placeholder)
             params.extend(values)
@@ -76,20 +94,118 @@ class BaseModel(Model):
 
         return sql, params
 
-class ArticleCategory(BaseModel):
+class DataSetVersion(BaseModel):
     id = PrimaryKeyField()
-    article = CharField(index=True, max_length=ARTICLE_MAX_LENGTH)
-    category = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
+    version = CharField(index=True, max_length=10)
+    language = CharField(max_length=10)
+    date = DateField()
 
-class CategoryCategory(BaseModel):
-    id = PrimaryKeyField()
-    narrower = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
-    broader = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
+    class Meta:
+        db_table = 'dataset_versions'
 
-class CategoryLabel(BaseModel):
+# Articles may or may not exist in different versions
+class Article(BaseModel):
     id = PrimaryKeyField()
-    category = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
-    label = CharField(index=True, max_length=LABEL_MAX_LENGTH)
+    name = CharField(index=True, max_length=ARTICLE_MAX_LENGTH)
+
+    class Meta:
+        db_table = 'articles'
+
+# Categories may or may not exist in different versions
+class Category(BaseModel):
+    id = PrimaryKeyField()
+    name = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
+
+    def get_parents(self, version=None):
+        q = Category.select() \
+            .join(CategoryCategory, on=CategoryCategory.broader) \
+            .where(CategoryCategory.narrower == self)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+    def get_children(self, version=None):
+        q = Category.select() \
+            .join(CategoryCategory, on=CategoryCategory.narrower) \
+            .where(CategoryCategory.broader == self)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+    def get_articles(self, version=None):
+        q = Article.select() \
+            .join(ArticleCategory, on=ArticleCategory.article) \
+            .where(ArticleCategory.category == self)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+    def get_article_categories(self, version=None):
+        q = ArticleCategory.select() \
+            .where(ArticleCategory.category == self)
+
+        if version:
+            q.where(ArticleCategory.version == version)
+
+        return q
+
+    def get_category_categories(self, version=None, direction="down"):
+        q = CategoryCategory.select()
+
+        if direction == 'up':
+            q = q.where(CategoryCategory.narrower == self)
+        elif direction == 'down':
+            q = q.where(CategoryCategory.broader == self)
+        else:
+            raise Exception("Unknown direction %s" % direction)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+    def get_labels(self, version=None):
+        q = CategoryLabel.select() \
+            .where(CategoryLabel.category == self)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+    class Meta:
+        db_table = 'categories'
+
+# An abstract model that has a version
+class VersionedModel(BaseModel):
+    version = ForeignKeyField(DataSetVersion)
+
+class CategoryLabel(VersionedModel):
+    category = ForeignKeyField(Category, related_name="labels")
+    label = CharField(max_length=CATEGORY_MAX_LENGTH, null=True)
+
+    class Meta:
+        db_table = 'category_labels'
+
+class ArticleCategory(VersionedModel):
+    article = ForeignKeyField(Article, related_name="article_categories")
+    category = ForeignKeyField(Category, related_name="article_categories")
+
+    class Meta:
+        db_table = 'article_categories'
+
+class CategoryCategory(VersionedModel):
+    narrower = ForeignKeyField(Category, related_name="parents")
+    broader = ForeignKeyField(Category, related_name="children")
+
+    class Meta:
+        db_table = 'category_categories'
 
 model_mapping = {
     'article_categories': ArticleCategory,
@@ -97,88 +213,54 @@ model_mapping = {
     'category_labels': CategoryLabel
 }
 
-table_mapping = {
-    'article_categories': Template('article_categories_${version}'),
-    'category_categories': Template('category_categories_${version}'),
-    'category_labels': Template('category_labels_${version}')
-}
+def create_tables(drop_if_exists=False, set_engine=None):
 
-def insert_dataset(data, dataset, version, language, limit=None):
-    if dataset not in model_mapping:
-        raise Exception("No model for %s" % dataset)
+    #foreign key dependencies
+    modelClasses = [CategoryLabel, ArticleCategory, CategoryCategory, Article, Category, DataSetVersion]
 
-    modelClass = model_mapping[dataset]
+    if drop_if_exists:
+        for modelClass in modelClasses:
 
-    if dataset not in table_mapping:
-        raise Exception("No table name for %s" % dataset)
+            db = modelClass._meta.database
 
-    version_code = version.replace(".", "_")
-    tableNameTemplate = table_mapping[dataset]
-    modelClass._meta.db_table = tableNameTemplate.substitute(version=version_code)
+            if modelClass.table_exists():
+                table_name = modelClass._meta.db_table
+                database = db.database
 
-    db = modelClass._meta.database
+                if confirm_replacements:
+                    confirm = query_yes_no("Replace existing table `%s` on database `%s`?" %(table_name, database),
+                                           default='no')
+                    if not confirm:
+                        return
 
-    if modelClass.table_exists():
-        table_name = modelClass._meta.db_table
-        database = db.database
+                # drop the table first
+                modelClass.drop_table()
 
-        if confirm_replacements:
-            confirm = query_yes_no("Replace existing table `%s` on database `%s`?" %(table_name, database),
-                                   default='no')
-            if not confirm:
-                return
+    #foreign key dependencies
+    modelClasses.reverse()
 
-        # drop the table first
-        modelClass.drop_table()
+    for modelClass in modelClasses:
+        if not modelClass.table_exists():
 
-    # create the table
-    modelClass.create_table()
+            if set_engine:
+                db = modelClass._meta.database
+                db.execute_sql('SET storage_engine=%s', params=[set_engine])
 
-    imported = 0
+            # create the table
+            modelClass.create_table()
 
-    modelClass._meta.auto_increment = False
-
-    batch_counter = 0
-    batch = []
-    for record in data:
-        batch.append(record)
-
-        if INSERT_BATCH_SIZE is not None and len(batch) >= INSERT_BATCH_SIZE:
-
-            sql, params = modelClass.generate_batch_insert(batch)
-            db.execute_sql(sql, params)
-            db.commit()
-
-            imported += len(batch)
-            batch_counter += 1
-
-            sys.stdout.write('.')
-            sys.stdout.flush()
-            if batch_counter % 60 == 0:
-                print
-
-            log.info("... inserted %d rows ...", imported)
-            batch = []
-
-            if limit is not None and imported >= limit:
-                print
-                print "Reached limit of %d" % limit
-                break
-
-    print
-
-    if len(batch):
-        sql, params = modelClass.generate_batch_insert(batch)
-        db.execute_sql(sql, params)
-        db.commit()
-        imported += len(batch)
-
-    return imported
-
+def dataset_version(version, language, date):
+    # find or create an entry for this dataset version
+    try:
+        return DataSetVersion.get(version=version, language=language, date=date)
+    except DoesNotExist:
+        log.info("Created versions entry for %s %s", language, version)
+        return DataSetVersion.create(version=version, language=language, date=date)
 
 def _test():
     import nose.tools as nt
     import mysql
+    import insert
 
     db = mysql.connect(database="wikicat",
                        user="root", host="localhost")
@@ -188,6 +270,9 @@ def _test():
     # point all the models at this database
     database_proxy.initialize(db)
     use_confirmations(False)
+
+    # create the tables
+    create_tables(drop_if_exists=True)
 
     # some example data
     dataset = [
@@ -205,7 +290,8 @@ def _test():
         {'category': u'Category:British_monarchs', 'label': u'British monarchs'},
     ]
 
-    imported = insert_dataset(data=dataset, dataset='category_labels', version='3.9', language='en')
+    datasetVersion = dataset_version(version='3.9', language='en', date='2013-04-03')
+    imported = insert.insert_dataset(data=dataset, dataset='category_labels', version_instance=datasetVersion)
 
     nt.assert_equal(len(dataset), imported)
 

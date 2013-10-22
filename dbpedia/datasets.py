@@ -116,11 +116,15 @@ iterator_mapping = {
     'category_labels': CategoryLabelIterator
 }
 
-def get_collection(dataset, version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
-    if dataset not in iterator_mapping:
-        raise Exception("No iterator for %s" % dataset)
-    resource = DBpediaResource(dataset=dataset, version=version, language=language, format="nt")
-    iterator = iterator_mapping[dataset]
+def get_collection(resource=None, dataset=None, version=DEFAULT_VERSION, language=DEFAULT_LANGUAGE):
+    if resource is None:
+        if dataset not in iterator_mapping:
+            raise Exception("No iterator for %s" % dataset)
+        resource = DBpediaResource(dataset=dataset, version=version, language=language, format="nt")
+        iterator = iterator_mapping[dataset]
+    else:
+        iterator = iterator_mapping[resource.dataset]
+
     return TripleCollection(resource, iterator)
 
 def _test():
