@@ -108,7 +108,7 @@ def num_articles_baselines(db, version):
     ) sub ON sub.id = st.id
     SET st.num_articles = sub.article_count
     """
-    log.info('Initializing num_articles to zero for version %d', version.id)
+    log.info('Initializing num_articles to baselines for version %d', version.id)
     cursor = db.execute_sql(update_zero, [version.id, version.id, version.id])
     log.info('Updated %d entries', cursor.rowcount)
     db.commit()
@@ -133,7 +133,7 @@ def num_categories_baselines(db, version):
         AND cs.version_id = %s
         AND cs.num_categories IS NULL
     """
-    log.info('Initializing stats to zero for version %d', version.id)
+    log.info('Initializing num_categories to zero for version %d', version.id)
     cursor = db.execute_sql(update_zero, [version.id, version.id])
     log.info('Updated %d entries', cursor.rowcount)
     db.commit()
