@@ -21,5 +21,5 @@ COMMAND="statistics.py \
 if [ "$4" == "profile" ]; then
     python pycachegrind.py $COMMAND
 else
-    python $COMMAND
+    time python $COMMAND
 fi
