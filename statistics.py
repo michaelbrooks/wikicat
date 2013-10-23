@@ -43,8 +43,8 @@ def calculate_stats(iterations, db, reset=False):
 
         # Create default stats for every category not yet included
         insert_select = """
-        INSERT INTO category_stats (version_id, category_id, subcategories_reporting)
-            SELECT v.id, c.id, 0
+        INSERT INTO category_stats (version_id, category_id, articles, subcategories, subcategories_reporting)
+            SELECT v.id, c.id, 0, 0, 0
             FROM categories c
             JOIN dataset_versions v
             LEFT JOIN category_stats cs
@@ -92,24 +92,34 @@ def set_immediate_articles(db):
 
     # Calculate every category's immediate article counts
     update_immediate_articles = """
-    UPDATE category_stats st
+    UPDATE category_stats cs
     JOIN (
-        SELECT cs.id, COUNT(ac.id) as article_count
-        FROM category_stats cs
-        LEFT JOIN article_categories ac
-            ON ac.category_id = cs.category_id
-            AND ac.version_id = cs.version_id
+        SELECT ac.category_id, ac.version_id, COUNT(*) as article_count
+        FROM article_categories ac
         -- ignore records that already have an article count
         -- (meaning that this will not update things if anything changes)
-        WHERE cs.articles IS NULL
-        GROUP BY cs.id
-    ) sub ON sub.id = st.id
-    SET st.articles = sub.article_count
+        GROUP BY ac.category_id, ac.version_id
+    ) sub
+    ON sub.category_id = cs.category_id
+        AND sub.version_id = cs.version_id
+    SET cs.articles = sub.article_count;
     """
 
     log.info('Initializing articles counts')
     with timer:
         cursor = db.execute_sql(update_immediate_articles)
+        db.commit()
+    log.info('Updated %d entries (%fs)', cursor.rowcount, timer.elapsed())
+
+    # make sure any remaining values are set to 0
+    ensure_zeros = """
+    UPDATE category_stats cs
+    SET cs.articles = 0
+    WHERE cs.articles IS NULL
+    """
+    log.info('Zeroing unmatched articles counts')
+    with timer:
+        cursor = db.execute_sql(ensure_zeros)
         db.commit()
     log.info('Updated %d entries (%fs)', cursor.rowcount, timer.elapsed())
 
@@ -122,26 +132,34 @@ def set_immediate_subcategories(db):
 
     # Calculate every category's immediate article counts
     update_immediate_categories = """
-    UPDATE category_stats st
+    UPDATE category_stats cs
     JOIN (
-        SELECT cs.id, COUNT(cc.id) as category_count
-        FROM category_stats cs
-        LEFT JOIN category_categories cc
-            ON cc.broader_id = cs.category_id
-            -- skip self-referencing category_categories
-            AND cc.narrower_id != cs.category_id
-            AND cc.version_id = cs.version_id
-        -- ignore records that already have an category count
-        -- (meaning that this will not update things if anything changes)
-        WHERE cs.subcategories IS NULL
-        GROUP BY cs.id
-    ) sub ON sub.id = st.id
-    SET st.subcategories = sub.category_count
+        SELECT cc.version_id, cc.broader_id, COUNT(*) as category_count
+        FROM category_categories cc
+        -- skip self-referencing category_categories
+        WHERE cc.narrower_id != cc.broader_id
+        GROUP BY cc.version_id, cc.broader_id
+    ) sub
+        ON sub.broader_id = cs.category_id
+        AND sub.version_id = cs.version_id
+    SET cs.subcategories = sub.category_count;
     """
 
     log.info('Initializing subcategory counts')
     with timer:
         cursor = db.execute_sql(update_immediate_categories)
+        db.commit()
+    log.info('Updated %d entries (%fs)', cursor.rowcount, timer.elapsed())
+
+    # make sure any remaining values are set to 0
+    ensure_zeros = """
+    UPDATE category_stats cs
+    SET cs.subcategories = 0
+    WHERE cs.subcategories IS NULL;
+    """
+    log.info('Zeroing unmatched subcategories counts')
+    with timer:
+        cursor = db.execute_sql(ensure_zeros)
         db.commit()
     log.info('Updated %d entries (%fs)', cursor.rowcount, timer.elapsed())
 
