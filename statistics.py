@@ -236,10 +236,10 @@ def calculate_totals(db, iterations):
         log.info('Updated %d entries (%fs)', updated, timer.elapsed())
 
     remaining = CategoryStats.select(fn.Count(CategoryStats.id))\
-        .where(CategoryStats.total_categories >> None)\
+        .where(CategoryStats.subcategories < CategoryStats.subcategories)\
         .scalar()
 
-    log.warn("Unfilled stats remaining: %d", remaining)
+    log.warn("Category stats with non-reporting subcategories: %d", remaining)
 
 if __name__ == "__main__":
     import argparse
