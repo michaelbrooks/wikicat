@@ -92,3 +92,21 @@ def add_io_args(parser):
                         default=False,
                         action="store_true",
                         help="answer yes to all confirmations")
+
+import time
+class Timer(object):
+
+    def __init__(self):
+        pass
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop = time.time()
+
+    def elapsed(self):
+        return self.stop - self.start
+
+timer = Timer()

@@ -209,8 +209,18 @@ class CategoryCategory(VersionedModel):
 
 class CategoryStats(VersionedModel):
     category = ForeignKeyField(Category, related_name="stats")
-    num_categories = IntegerField(null=True, default=None)
-    num_articles = IntegerField(null=True, default=None)
+
+    subcategories = IntegerField(null=True, default=None)
+    articles = IntegerField(null=True, default=None)
+
+    total_categories = IntegerField(null=True, default=None)
+    total_articles = IntegerField(null=True, default=None)
+    subcategories_reporting = IntegerField(null=False, default=0)
+
+    @classmethod
+    def reset(cls):
+        return cls.update(subcategories=None, articles=None,
+                          total_categories=None, total_articles=None)
 
     class Meta:
         db_table = 'category_stats'
@@ -258,11 +268,11 @@ def create_tables(drop_if_exists=False, set_engine=None):
             modelClass.create_table()
 
 def create_table(modelClass, drop_if_exists=False, set_engine=None):
+    table_name = modelClass._meta.db_table
 
     if drop_if_exists:
         db = modelClass._meta.database
         if modelClass.table_exists():
-            table_name = modelClass._meta.db_table
             database = db.database
 
             if confirm_replacements:
@@ -273,6 +283,7 @@ def create_table(modelClass, drop_if_exists=False, set_engine=None):
 
             # drop the table first
             modelClass.drop_table()
+            log.info("Dropped table %s" %(table_name))
 
     if not modelClass.table_exists():
 
@@ -282,6 +293,7 @@ def create_table(modelClass, drop_if_exists=False, set_engine=None):
 
         # create the table
         modelClass.create_table()
+        log.info("Created table %s" %(table_name))
 
 
 def dataset_version(version, language, date):

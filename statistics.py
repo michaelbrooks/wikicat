@@ -11,6 +11,7 @@ from catdb import mysql
 from catdb.mysql import DEFAULT_PASSWORD
 from catdb.models import Category, CategoryCategory, CategoryStats, DataSetVersion
 from catdb import bfs
+from common import timer
 
 import logging
 import common
@@ -26,127 +27,156 @@ def calculate_stats(iterations, db, reset=False):
 
     versions = DataSetVersion.select()
 
-    for version in versions:
+    # make sure there is a stats entry for every category, for every version
+    missing_cats = """
+    SELECT COUNT(*)
+    FROM categories c
+    JOIN dataset_versions v
+    LEFT JOIN category_stats cs
+        ON c.id = cs.category_id
+        AND cs.version_id = v.id
+    WHERE cs.id IS NULL
+    """
+    missing = Category.raw(missing_cats).scalar()
+    log.info("Missing stats for %d categories", missing)
+    if missing > 0:
 
-        # make sure there is a stats entry for every category
-        missing_cats = """
-        SELECT COUNT(*)
-        FROM categories c
-        LEFT JOIN category_stats cs
-            ON c.id = cs.category_id
-            AND cs.version_id = %s
-        WHERE cs.id IS NULL
+        # Create default stats for every category not yet included
+        insert_select = """
+        INSERT INTO category_stats (version_id, category_id, subcategories_reporting)
+            SELECT v.id, c.id, 0
+            FROM categories c
+            JOIN dataset_versions v
+            LEFT JOIN category_stats cs
+                ON c.id = cs.category_id
+                AND cs.version_id = v.id
+            WHERE cs.id IS NULL
         """
-        missing = Category.raw(missing_cats, version.id).scalar()
-        log.info("Missing stats for %d categories for version %d", missing, version.id)
-        if missing > 0:
-
-            # Create default stats for every category not yet included
-            insert_select = """
-            INSERT INTO category_stats (version_id, category_id)
-                SELECT %s, c.id
-                FROM categories c
-                LEFT JOIN category_stats cs
-                    ON c.id = cs.category_id
-                    AND cs.version_id = %s
-                WHERE cs.id IS NULL
-            """
-            log.info('Creating empty stats for version %d', version.id)
-            cursor = db.execute_sql(insert_select, [version.id, version.id])
-            log.info('Created %d entries', cursor.rowcount)
+        log.info('Creating missing stats')
+        with timer:
+            cursor = db.execute_sql(insert_select)
             db.commit()
+        log.info('Created %d entries (%fs)', cursor.rowcount, timer.elapsed())
 
-        if reset:
-            reset_stats(db, version)
+    if reset:
+        reset_stats(db)
 
-        num_categories_baselines(db, version)
-        calculate_num_categories(iterations, db, version)
+    set_immediate_articles(db)
+    set_immediate_subcategories(db)
+    set_baseline_stats(db)
 
-        num_articles_baselines(db, version)
-        calculate_num_articles(iterations, db, version)
+    calculate_totals(db, iterations)
 
-def reset_stats(db, version):
+
+def reset_stats(db):
     """
     Sets all stats values to NULL.
 
     :param db:
-    :param version:
     :return:
     """
     # reset stats for this version
-    log.info('Resetting stats for version %d', version.id)
-    updated = CategoryStats.update(num_articles=None, num_categories=None) \
-        .where(CategoryStats.version == version) \
-        .execute()
-    log.info("Reset %d entries", updated)
+    log.info('Resetting stats')
+    with timer:
+        updated = CategoryStats.reset() \
+            .execute()
+        db.commit()
+    log.info("Reset %d entries (%fs)", updated, timer.elapsed())
 
-def num_articles_baselines(db, version):
+def set_immediate_articles(db):
     """
     Set num articles to baseline for all childless categories.
     :param db:
-    :param version:
     :return:
     """
 
-    # Update all the categories with no children and no counts
-    update_zero = """
+    # Calculate every category's immediate article counts
+    update_immediate_articles = """
     UPDATE category_stats st
     JOIN (
         SELECT cs.id, COUNT(ac.id) as article_count
         FROM category_stats cs
         LEFT JOIN article_categories ac
             ON ac.category_id = cs.category_id
-            AND ac.version_id = %s
-        LEFT JOIN category_categories cc
-            ON cc.broader_id = cs.category_id
-            AND cc.version_id = %s
-            AND cc.narrower_id != cs.category_id
-        WHERE cc.id IS NULL
-            AND cs.version_id = %s
-            AND cs.num_articles IS NULL
+            AND ac.version_id = cs.version_id
+        -- ignore records that already have an article count
+        -- (meaning that this will not update things if anything changes)
+        WHERE cs.articles IS NULL
         GROUP BY cs.id
     ) sub ON sub.id = st.id
-    SET st.num_articles = sub.article_count
+    SET st.articles = sub.article_count
     """
-    log.info('Initializing num_articles to baselines for version %d', version.id)
-    cursor = db.execute_sql(update_zero, [version.id, version.id, version.id])
-    log.info('Updated %d entries', cursor.rowcount)
-    db.commit()
 
-def num_categories_baselines(db, version):
+    log.info('Initializing articles counts')
+    with timer:
+        cursor = db.execute_sql(update_immediate_articles)
+        db.commit()
+    log.info('Updated %d entries (%fs)', cursor.rowcount, timer.elapsed())
+
+def set_immediate_subcategories(db):
     """
-    Set num categories to baselines for all childless categories.
+    Get the number of immediate subcategories
     :param db:
-    :param version:
     :return:
     """
 
-    # Update all the categories with no children and no counts
+    # Calculate every category's immediate article counts
+    update_immediate_categories = """
+    UPDATE category_stats st
+    JOIN (
+        SELECT cs.id, COUNT(cc.id) as category_count
+        FROM category_stats cs
+        LEFT JOIN category_categories cc
+            ON cc.broader_id = cs.category_id
+            -- skip self-referencing category_categories
+            AND cc.narrower_id != cs.category_id
+            AND cc.version_id = cs.version_id
+        -- ignore records that already have an category count
+        -- (meaning that this will not update things if anything changes)
+        WHERE cs.subcategories IS NULL
+        GROUP BY cs.id
+    ) sub ON sub.id = st.id
+    SET st.subcategories = sub.category_count
+    """
+
+    log.info('Initializing subcategory counts')
+    with timer:
+        cursor = db.execute_sql(update_immediate_categories)
+        db.commit()
+    log.info('Updated %d entries (%fs)', cursor.rowcount, timer.elapsed())
+
+def set_baseline_stats(db):
+    """
+    Update all the bottom-level categories with no children and no counts
+    Should only be called after the the immediate article
+    counts have been calculated.
+    :param db:
+    """
+
     update_zero = """
     UPDATE category_stats cs
-    LEFT JOIN category_categories cc
-        ON cc.broader_id = cs.category_id
-        AND cc.version_id = %s
-        AND cc.narrower_id != cs.category_id
-    SET cs.num_categories = 0
-        WHERE cc.id IS NULL
-        AND cs.version_id = %s
-        AND cs.num_categories IS NULL
+    -- get all subcategories
+    SET cs.total_articles = cs.articles,
+        cs.total_categories = 0
+    WHERE cs.subcategories = 0
+        AND (cs.total_articles IS NULL OR
+             cs.total_categories IS NULL);
     """
-    log.info('Initializing num_categories to zero for version %d', version.id)
-    cursor = db.execute_sql(update_zero, [version.id, version.id])
-    log.info('Updated %d entries', cursor.rowcount)
-    db.commit()
 
-def calculate_num_categories(iterations, db, version):
+    log.info('Initializing total_articles and total_categories baselines')
+    with timer:
+        cursor = db.execute_sql(update_zero)
+        db.commit()
+    log.info('Updated %d entries (%fs)', cursor.rowcount, timer.elapsed())
+
+def calculate_totals(db, iterations):
     """
     Sets all childless categories to have 0 num_categories.
     Then iteratively builds num_categories by walking
     up the tree. Assumes all subcategories contain distinct sets of categories :(
 
-    :param iterations:
     :param db:
-    :param version:
+    :param iterations:
     :return:
     """
 
@@ -154,83 +184,44 @@ def calculate_num_categories(iterations, db, version):
     expand = """
     UPDATE category_stats st
     JOIN (
-        SELECT cs.id,
-            SUM(sub_cs.num_categories + 1) AS child_categories
-        FROM category_stats cs
-        JOIN category_categories cc
-            ON cc.broader_id = cs.category_id
-            AND cc.version_id = %s
+        SELECT cc.version_id, cc.broader_id,
+            SUM(sub_cs.total_categories) AS child_categories,
+            SUM(sub_cs.total_articles) AS child_articles,
+            COUNT(sub_cs.id) AS reporting
+        FROM category_categories cc
         JOIN category_stats sub_cs
-            ON cc.narrower_id = sub_cs.category_id
-            AND sub_cs.num_categories IS NOT NULL
-            AND sub_cs.version_id = %s
-        WHERE cs.version_id = %s
-        AND cs.num_categories IS NULL
-        GROUP BY cs.id
-    ) sub ON sub.id = st.id
-    SET st.num_categories = sub.child_categories
+            ON sub_cs.category_id = cc.narrower_id
+            AND sub_cs.version_id = cc.version_id
+        WHERE sub_cs.total_categories IS NOT NULL
+        -- (note that total_categories is NULL iff total_articles is NULL)
+        GROUP BY cc.version_id, cc.broader_id
+    ) sub
+        ON st.category_id = sub.broader_id
+        AND st.version_id = sub.version_id
+    SET st.total_categories = sub.child_categories + st.subcategories,
+        st.total_articles = sub.child_articles + st.articles,
+        st.subcategories_reporting = sub.reporting
+    WHERE st.subcategories_reporting < st.subcategories
     """
 
+    updated = 1
     for i in range(iterations):
-        log.info('Propagating num_categories. Iteration %d', i + 1)
-        cursor = db.execute_sql(expand, [version.id, version.id, version.id])
-        log.info('Updated %d entries', cursor.rowcount)
-        db.commit()
+        if updated == 0:
+            log.warn('Stopping because nothing changed.')
+            break
+
+        log.info('Propagating total_categories and total_articles (iteration %d / %d)', i + 1, iterations)
+        with timer:
+            cursor = db.execute_sql(expand)
+            db.commit()
+        updated = cursor.rowcount
+        log.info('Updated %d entries (%fs)', updated, timer.elapsed())
 
     remaining = CategoryStats.select(fn.Count(CategoryStats.id))\
-        .where(CategoryStats.num_categories >> None)\
+        .where(CategoryStats.total_categories >> None)\
         .scalar()
 
-    log.warn("num_categories is NULL on %d categories in version %d", remaining, version.id)
-
-def calculate_num_articles(iterations, db, version):
-    """
-    Iteratively builds num_articles by walking
-    up the tree. Assumes all subcategories contain distinct sets of articles :(
-
-    :param iterations:
-    :param db:
-    :param version:
-    :return:
-    """
-
-    # based on what we've calculated so far, sum and propagate to next level
-    expand = """
-    UPDATE category_stats st
-    JOIN (
-        SELECT cs.id,
-            SUM(sub_cs.num_articles)
-             + COUNT(ac.article_id) AS child_articles
-        FROM category_stats cs
-        JOIN category_categories cc
-            ON cc.broader_id = cs.category_id
-            AND cc.version_id = %s
-        JOIN category_stats sub_cs
-            ON cc.narrower_id = sub_cs.category_id
-            AND sub_cs.num_articles IS NOT NULL
-            AND sub_cs.version_id = %s
-        LEFT JOIN article_categories ac
-            ON ac.category_id = cs.category_id
-            AND ac.version_id = %s
-        WHERE cs.version_id = %s
-        AND cs.num_articles IS NULL
-        GROUP BY cs.id
-    ) sub ON sub.id = st.id
-    SET st.num_articles = sub.child_articles
-    """
-
-    for i in range(iterations):
-        log.info('Propagating num_articles. Iteration %d', i + 1)
-        cursor = db.execute_sql(expand, [version.id, version.id, version.id, version.id])
-        log.info('Updated %d entries', cursor.rowcount)
-        db.commit()
-
-    remaining = CategoryStats.select(fn.Count(CategoryStats.id)) \
-        .where(CategoryStats.num_articles >> None) \
-        .scalar()
-
-    log.warn("num_articles is NULL on %d categories in version %d", remaining, version.id)
-
+    log.warn("Unfilled stats remaining: %d", remaining)
 
 if __name__ == "__main__":
     import argparse
