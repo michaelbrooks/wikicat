@@ -45,8 +45,8 @@ def map_category(category, image):
     """
     width = image.size[0]
 
-    row = math.floor(category.id / width)
-    col = category.id % width
+    row = math.floor(category / width)
+    col = category % width
 
     return col, row
 
@@ -118,6 +118,8 @@ def save_index(path, version_images, root_category, max_depth):
         <style>
         body {
             margin: 20px;
+            background: #333;
+            color: #eee;
         }
         .images {
             white-space: nowrap;
@@ -177,7 +179,7 @@ def save_index(path, version_images, root_category, max_depth):
     print "Saved %s" % indexfile
 
 
-def bfs_pics(root_name, depth, output_dir, db):
+def bfs_pics(root_name, depth, output_dir, db, order):
     models.database_proxy.initialize(db)
 
     root = Category.select().where(Category.name==root_name).first()
@@ -229,12 +231,19 @@ def bfs_pics(root_name, depth, output_dir, db):
                 frontier = []
                 current_level = level
 
-            frontier.append(cat)
+            if order == 'id':
+                cat_info = cat.id
+            if order == 'added':
+                cat_info = total_traversed + len(frontier)
+            else:
+                raise Exception("Order must be id or added")
+
+            frontier.append(cat_info)
 
         if len(frontier):
             print "Traversed %d categories at level %d" % (len(frontier), current_level)
             sys.stdout.flush()
-            
+
             # any last few to save
             total_traversed += len(frontier)
             update_image(image, frontier, prev_frontier)
@@ -276,7 +285,11 @@ if __name__ == "__main__":
                         type=int,
                         required=False,
                         help="Category depth to explore from root category")
-
+    parser.add_argument("--order",
+                        default='id',
+                        choices=['id', 'added'],
+                        required=False,
+                        help="Sort order for pixels")
     args = parser.parse_args()
 
     if args.verbose:
@@ -307,4 +320,4 @@ if __name__ == "__main__":
     else:
         output = args.output
 
-    bfs_pics(root_name=args.root_category, depth=args.depth, output_dir=output, db=db)
+    bfs_pics(root_name=args.root_category, depth=args.depth, output_dir=output, db=db, order=args.order)
