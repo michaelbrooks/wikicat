@@ -8,7 +8,7 @@ nodes are a third color.
 """
 
 import logging
-import os
+import os, sys
 import math
 from datetime import datetime
 from PIL import Image, ImageDraw
@@ -187,7 +187,8 @@ def bfs_pics(root_name, depth, output_dir, db):
     version_images = []
     for version in versions:
         print "Generating images for version %d..." % (version.id)
-
+        sys.stdout.flush()
+        
         current_version_images = []
 
         # make the output directory
