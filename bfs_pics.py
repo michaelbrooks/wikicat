@@ -123,7 +123,7 @@ def save_index(path, version_images, root_category, max_depth, order='id'):
             )
 
         versions = "".join(versions)
-        html = outer_template.substitute(root=root_category,
+        html = outer_template.substitute(root=root_category.name,
                                          max_depth=max_depth,
                                          today=str(datetime.now()),
                                          versions=versions,
@@ -136,7 +136,8 @@ def save_index(path, version_images, root_category, max_depth, order='id'):
             'version_images': version_images,
             'max_depth': max_depth,
             'generated': str(datetime.now()),
-            'root': root_category,
+            'root': root_category.id,
+            'root_name': root_category.name,
             'order': order
         }
 
@@ -327,8 +328,8 @@ def bfs_pics(root_name, depth, output_dir, db, version_list=[]):
             'frames': tracker_added.collect()
         })
 
-    save_index(output_dir, version_images, root_name, depth, order='id')
-    save_index(output_dir, version_images_added, root_name, depth, order='added')
+    save_index(output_dir, version_images, root, depth, order='id')
+    save_index(output_dir, version_images_added, root, depth, order='added')
 
 def slugify(value):
     """
