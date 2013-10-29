@@ -9,6 +9,7 @@ ROOT_CATEGORY=$1
 OUTPUT=$2
 DEPTH=$3
 ORDER=$4
+VERSIONS="3.7 3.8 3.9"
 
 HOSTNAME="127.0.0.1"
 USERNAME=$5
@@ -19,6 +20,7 @@ COMMAND="bfs_pics.py \
     --depth $DEPTH \
     --order $ORDER \
     --output $OUTPUT \
+    --versions $VERSIONS \
     -H $HOSTNAME \
     -u $USERNAME \
     -d $FROM_DATABASE \

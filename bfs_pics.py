@@ -20,72 +20,7 @@ from catdb.models import Category, DataSetVersion
 from catdb import mysql
 from catdb.mysql import DEFAULT_PASSWORD
 from catdb import bfs
-
-def create_image():
-    """
-    Generates a manipulable in-memory image resource.
-    :return:
-    """
-    # how many categories?
-    total = Category.select().count()
-    aspect_ratio = float(4) / 3
-    width = int(math.sqrt(aspect_ratio * total))
-    height = int(width / aspect_ratio)
-
-    img = Image.new("RGB", (width, height))
-    return img
-
-def map_category(category, image):
-    """
-    Maps the category to a pixel in the image.
-
-    :param category:
-    :param image:
-    :return:
-    """
-    width = image.size[0]
-
-    row = math.floor(category / width)
-    col = category % width
-
-    return col, row
-
-def update_image(image, categories, prev_categories):
-    """
-    Paints the given categories to indicate they have just been traversed.
-    Previously traversed categories will be painted another color.
-    :param image:
-    :param categories:
-    :param prev_categories:
-    :return:
-    """
-
-    draw = ImageDraw.Draw(image)
-    interior_color = (162, 99, 47)
-    frontier_color = (102, 255, 0)
-
-    # mark the old categories
-    if len(prev_categories):
-        draw.point([map_category(cat, image) for cat in prev_categories], interior_color)
-
-    # mark the new categories
-    if len(categories):
-        draw.point([map_category(cat, image) for cat in categories], frontier_color)
-
-def save_image(output_dir, version_path, iteration_name, image):
-    """
-    Saves the image into the specified path, obviously.
-    :param path:
-    :param level:
-    :param image:
-    :return:
-    """
-    fname = os.path.join(version_path, "%s.png" % iteration_name)
-    full_path = os.path.join(output_dir, fname)
-    with open(full_path, 'wb') as outfile:
-        image.save(outfile)
-
-    return fname
+from dbpedia import resource
 
 def save_index(path, version_images, root_category, max_depth):
     """
@@ -159,12 +94,27 @@ def save_index(path, version_images, root_category, max_depth):
     with open(indexfile, 'wt') as outfile:
 
         versions = []
-        for version_key, image_list in version_images:
+        for version_dict in version_images:
+            version = version_dict['version']
+            frames = version_dict['frames']
+
+            version_key = "%d: %s (%s)" % (version['id'],
+                                           version['version'],
+                                           str(version['date']))
             images = []
 
-            for img_path, depth, total, this_level in image_list:
+            for frame in frames:
+                img_path = frame['img']
+                depth = frame['depth']
+                total = frame['total_traversed']
+                this_level = frame['new_traversed']
+
                 images.append(
-                    image_template.substitute(src=img_path, depth=depth, version=version_key, total=total, this_level=this_level)
+                    image_template.substitute(src=img_path,
+                                              depth=depth,
+                                              version=version_key,
+                                              total=total,
+                                              this_level=this_level)
                 )
 
             images = "".join(images)
@@ -176,22 +126,155 @@ def save_index(path, version_images, root_category, max_depth):
         html = outer_template.substitute(root=root_category, max_depth=max_depth, today=str(datetime.now()), versions=versions)
         outfile.write(html)
 
-    print "Saved %s" % indexfile
+    datafile = os.path.join(path, 'data.json')
+    with open(datafile, 'wt') as outfile:
+        data = {
+            'version_images': version_images,
+            'max_depth': max_depth,
+            'generated': str(datetime.now()),
+            'root': root_category
+        }
 
+        import json
+        outfile.write(json.dumps(data, sort_keys=True, indent=3))
 
-def bfs_pics(root_name, depth, output_dir, db, order):
+    print "Saved %s and %s" % (indexfile, datafile)
+
+class IterationTracker(object):
+
+    def __init__(self, output_dir, version_path, order):
+        self.output_dir = output_dir
+        self.version_path = version_path
+        self.order = order
+        self.total_traversed = 0
+        self.current_depth = 0
+        self.frontier = []
+        self.prev_frontier = []
+        self.image = self.create_image()
+        self.version_images = []
+
+    def create_image(self):
+        """
+        Generates a manipulable in-memory image resource.
+        :return:
+        """
+        # how many categories?
+        total = Category.select().count()
+        aspect_ratio = float(4) / 3
+        width = int(math.sqrt(aspect_ratio * total))
+        height = int(width / aspect_ratio)
+
+        img = Image.new("RGB", (width, height))
+        return img
+
+    def map_category(self, category, image):
+        """
+        Maps the category to a pixel in the image.
+
+        :param category:
+        :param image:
+        :return:
+        """
+        width = image.size[0]
+
+        row = math.floor(category / width)
+        col = category % width
+
+        return col, row
+
+    def update_image(self):
+        """
+        Paints the given categories to indicate they have just been traversed.
+        Previously traversed categories will be painted another color.
+        :param image:
+        :param categories:
+        :param prev_categories:
+        :return:
+        """
+
+        draw = ImageDraw.Draw(self.image)
+        interior_color = (162, 99, 47)
+        frontier_color = (102, 255, 0)
+
+        # mark the old categories
+        if len(self.prev_frontier):
+            draw.point([self.map_category(cat, self.image) for cat in self.prev_frontier], interior_color)
+
+        # mark the new categories
+        if len(self.frontier):
+            draw.point([self.map_category(cat, self.image) for cat in self.frontier], frontier_color)
+
+    def save_image(self, output_dir, version_path, iteration_name, image):
+        """
+        Saves the image into the specified path, obviously.
+        :param path:
+        :param level:
+        :param image:
+        :return:
+        """
+        fname = os.path.join(version_path, "%s.png" % iteration_name)
+        full_path = os.path.join(output_dir, fname)
+        with open(full_path, 'wb') as outfile:
+            image.save(outfile)
+
+        return fname
+
+    def record_depth(self):
+        self.total_traversed += len(self.frontier)
+        self.update_image()
+        fname = self.save_image(self.output_dir, self.version_path,
+                           self.current_depth, self.image)
+
+        self.version_images.append({
+            'img': fname,
+            'depth': self.current_depth,
+            'total_traversed': self.total_traversed,
+            'new_traversed': len(self.frontier)
+        })
+
+        print "Traversed %d categories at depth %d" % (len(self.frontier), self.current_depth)
+        sys.stdout.flush()
+
+        self.prev_frontier = self.frontier
+        self.frontier = []
+        self.current_depth += 1
+
+    def traverse_category(self, cat, depth):
+        if depth != self.current_depth:
+            self.record_depth()
+
+        if self.order == 'id':
+            cat_info = cat.id
+        elif self.order == 'added':
+            cat_info = self.total_traversed + len(self.frontier)
+        else:
+            raise Exception("Order must be id or added")
+
+        self.frontier.append(cat_info)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if len(self.frontier):
+            self.record_depth()
+
+    def collect(self):
+        return self.version_images
+
+def bfs_pics(root_name, depth, output_dir, db, order, version_list=[]):
     models.database_proxy.initialize(db)
 
     root = Category.select().where(Category.name==root_name).first()
 
     versions = DataSetVersion.select()
+    if len(version_list):
+        versions = versions.where(DataSetVersion.version << version_list)
 
     version_images = []
     for version in versions:
-        print "Generating images for version %d..." % (version.id)
+        print "Generating images for version %s..." % version.version
         sys.stdout.flush()
-
-        current_version_images = []
 
         # make the output directory
         version_path = str(version.id)
@@ -210,48 +293,21 @@ def bfs_pics(root_name, depth, output_dir, db, order):
         # get the bfs iterator
         descendants = bfs.descendants(root, norepeats=True, max_levels=depth, version=version)
 
-        total_traversed = 0
-        current_level = 0
-        frontier = []
-        prev_frontier = []
-        image = create_image()
+        tracker = IterationTracker(output_dir, version_path, order)
 
-        for cat in descendants:
-            level = descendants.current_level
-            if level != current_level:
-                print "Traversed %d categories at level %d" % (len(frontier), current_level)
-                sys.stdout.flush()
+        with tracker:
+            for cat in descendants:
+                depth = descendants.current_level
+                tracker.traverse_category(cat, depth)
 
-                total_traversed += len(frontier)
-                update_image(image, frontier, prev_frontier)
-                fname = save_image(output_dir, version_path, current_level, image)
-                current_version_images.append((fname, current_level, total_traversed, len(frontier)))
-
-                prev_frontier = frontier
-                frontier = []
-                current_level = level
-
-            if order == 'id':
-                cat_info = cat.id
-            if order == 'added':
-                cat_info = total_traversed + len(frontier)
-            else:
-                raise Exception("Order must be id or added")
-
-            frontier.append(cat_info)
-
-        if len(frontier):
-            print "Traversed %d categories at level %d" % (len(frontier), current_level)
-            sys.stdout.flush()
-
-            # any last few to save
-            total_traversed += len(frontier)
-            update_image(image, frontier, prev_frontier)
-            fname = save_image(output_dir, version_path, current_level, image)
-            current_version_images.append((fname, current_level, total_traversed, len(frontier)))
-
-        version_key = "%d: %s (%s)" % (version.id, version.version, str(version.date))
-        version_images.append((version_key, current_version_images))
+        version_images.append({
+            'version': {
+                'id': version.id,
+                'version': version.version,
+                'date': str(version.date)
+            },
+            'frames': tracker.collect()
+        })
 
     save_index(output_dir, version_images, root_name, depth)
 
@@ -280,11 +336,20 @@ if __name__ == "__main__":
                         required=False,
                         help="Output directory for images")
 
+    parser.add_argument("--versions", "-v",
+                        required=False,
+                        metavar='DBPEDIA_VERSION',
+                        nargs='*',
+                        default=[],
+                        choices=resource.version_names,
+                        help="Which DBpedia version number(s) to import")
+
     parser.add_argument("--depth",
                         default=5,
                         type=int,
                         required=False,
                         help="Category depth to explore from root category")
+
     parser.add_argument("--order",
                         default='id',
                         choices=['id', 'added'],
@@ -320,4 +385,9 @@ if __name__ == "__main__":
     else:
         output = args.output
 
-    bfs_pics(root_name=args.root_category, depth=args.depth, output_dir=output, db=db, order=args.order)
+    bfs_pics(root_name=args.root_category,
+             depth=args.depth,
+             output_dir=output,
+             db=db,
+             order=args.order,
+             version_list=args.versions)
