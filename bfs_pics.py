@@ -244,6 +244,16 @@ def bfs_pics(root_name, depth, output_dir, db):
 
     save_index(output_dir, version_images, root_name, depth)
 
+def slugify(value):
+    """
+    Normalizes string, converts to lowercase, removes non-alpha characters,
+    and converts spaces to hyphens.
+    """
+    import unicodedata, re
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
+    value = unicode(re.sub('[^:\w\s-]', '', value).strip().lower())
+    return re.sub('[-:\s]+', '-', value)
+
 if __name__ == "__main__":
     import argparse
 
@@ -254,7 +264,9 @@ if __name__ == "__main__":
     parser.add_argument("root_category",
                         help="Name of root category")
 
-    parser.add_argument("output_dir",
+    parser.add_argument("--output",
+                        default=None,
+                        required=False,
                         help="Output directory for images")
 
     parser.add_argument("--depth",
@@ -287,4 +299,10 @@ if __name__ == "__main__":
     if args.yes:
         models.use_confirmations(False)
 
-    bfs_pics(root_name=args.root_category, depth=args.depth, output_dir=args.output_dir, db=db)
+    if args.output is None:
+        output = slugify(unicode(args.root_category))
+        print "Saving to %s" % output
+    else:
+        output = args.output
+
+    bfs_pics(root_name=args.root_category, depth=args.depth, output_dir=output, db=db)
