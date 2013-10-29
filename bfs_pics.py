@@ -151,7 +151,7 @@ def save_index(path, version_images, root_category, max_depth):
     """)
 
     image_template = Template("""
-    <img src="$src" title="depth $depth for version $version"/>
+    <img src="$src" title="$this_level added at depth $depth (total $total; version $version)"/>
     """)
 
     indexfile = os.path.join(path, 'index.html')
@@ -161,9 +161,9 @@ def save_index(path, version_images, root_category, max_depth):
         for version_key, image_list in version_images:
             images = []
 
-            for img_path, depth in image_list:
+            for img_path, depth, total, this_level in image_list:
                 images.append(
-                    image_template.substitute(src=img_path, depth=depth, version=version_key)
+                    image_template.substitute(src=img_path, depth=depth, version=version_key, total=total, this_level=this_level)
                 )
 
             images = "".join(images)
@@ -206,8 +206,9 @@ def bfs_pics(root_name, depth, output_dir, db):
                 raise
 
         # get the bfs iterator
-        descendants = bfs.descendants(root, norepeats=False, max_levels=depth, version=version)
+        descendants = bfs.descendants(root, norepeats=True, max_levels=depth, version=version)
 
+        total_traversed = 0
         current_level = 0
         frontier = []
         prev_frontier = []
@@ -218,9 +219,10 @@ def bfs_pics(root_name, depth, output_dir, db):
             if level != current_level:
                 print "Traversed %d categories at level %d" % (len(frontier), current_level)
 
+                total_traversed += len(frontier)
                 update_image(image, frontier, prev_frontier)
                 fname = save_image(output_dir, version_path, current_level, image)
-                current_version_images.append((fname, current_level))
+                current_version_images.append((fname, current_level, total_traversed, len(frontier)))
 
                 prev_frontier = frontier
                 frontier = []
@@ -232,9 +234,10 @@ def bfs_pics(root_name, depth, output_dir, db):
             print "Traversed %d categories at level %d" % (len(frontier), current_level)
 
             # any last few to save
+            total_traversed += len(frontier)
             update_image(image, frontier, prev_frontier)
             fname = save_image(output_dir, version_path, current_level, image)
-            current_version_images.append((fname, current_level))
+            current_version_images.append((fname, current_level, total_traversed, len(frontier)))
 
         version_key = "%d: %s (%s)" % (version.id, version.version, str(version.date))
         version_images.append((version_key, current_version_images))
