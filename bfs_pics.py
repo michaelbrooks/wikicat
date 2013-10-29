@@ -188,7 +188,7 @@ def bfs_pics(root_name, depth, output_dir, db):
     for version in versions:
         print "Generating images for version %d..." % (version.id)
         sys.stdout.flush()
-        
+
         current_version_images = []
 
         # make the output directory
@@ -218,6 +218,7 @@ def bfs_pics(root_name, depth, output_dir, db):
             level = descendants.current_level
             if level != current_level:
                 print "Traversed %d categories at level %d" % (len(frontier), current_level)
+                sys.stdout.flush()
 
                 total_traversed += len(frontier)
                 update_image(image, frontier, prev_frontier)
@@ -232,7 +233,8 @@ def bfs_pics(root_name, depth, output_dir, db):
 
         if len(frontier):
             print "Traversed %d categories at level %d" % (len(frontier), current_level)
-
+            sys.stdout.flush()
+            
             # any last few to save
             total_traversed += len(frontier)
             update_image(image, frontier, prev_frontier)
