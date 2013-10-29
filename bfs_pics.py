@@ -84,7 +84,6 @@ def save_image(output_dir, version_path, iteration_name, image):
     full_path = os.path.join(output_dir, fname)
     with open(full_path, 'wb') as outfile:
         image.save(outfile)
-        print "Saved %s" % full_path
 
     return fname
 
