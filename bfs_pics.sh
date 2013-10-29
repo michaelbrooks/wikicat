@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ $# -lt 6 ]; then
+if [ $# -lt 5 ]; then
     echo "Usage: bfs_pics.sh ROOT_CATEGORY OUTPUT DEPTH ORDER USERNAME FROM_DATABASE"
     exit 1
 fi
@@ -8,17 +8,15 @@ fi
 ROOT_CATEGORY=$1
 OUTPUT=$2
 DEPTH=$3
-ORDER=$4
 VERSIONS="3.7 3.8 3.9"
 
 HOSTNAME="127.0.0.1"
-USERNAME=$5
-FROM_DATABASE=$6
+USERNAME=$4
+FROM_DATABASE=$5
 
 COMMAND="bfs_pics.py \
     $ROOT_CATEGORY \
     --depth $DEPTH \
-    --order $ORDER \
     --output $OUTPUT \
     --versions $VERSIONS \
     -H $HOSTNAME \

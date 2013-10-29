@@ -22,7 +22,7 @@ from catdb.mysql import DEFAULT_PASSWORD
 from catdb import bfs
 from dbpedia import resource
 
-def save_index(path, version_images, root_category, max_depth):
+def save_index(path, version_images, root_category, max_depth, order='id'):
     """
     Generates an HTML file that will display all the images.
 
@@ -66,7 +66,7 @@ def save_index(path, version_images, root_category, max_depth):
         <p class="muted">Generated $today. Depth limited to $max_depth.</p>
         <p>From the root category ($root), subcategories were explored in a breadth-first fashion.
         Each image, from left to right, reveals another level of the hierarchy.
-        Each pixel corresponds to a single category. They are ordered by their database id, which may be arbitrary (or not).
+        Each pixel corresponds to a single category. Pixels are ordered by $order.
         Just-traversed categories are in green, while previously visited categories are in orange.
         DBpedia versions are separated vertically.
 
@@ -90,7 +90,7 @@ def save_index(path, version_images, root_category, max_depth):
     <img src="$src" title="$this_level added at depth $depth (total $total; version $version)"/>
     """)
 
-    indexfile = os.path.join(path, 'index.html')
+    indexfile = os.path.join(path, 'images_by_%s.html' % order)
     with open(indexfile, 'wt') as outfile:
 
         versions = []
@@ -123,7 +123,11 @@ def save_index(path, version_images, root_category, max_depth):
             )
 
         versions = "".join(versions)
-        html = outer_template.substitute(root=root_category, max_depth=max_depth, today=str(datetime.now()), versions=versions)
+        html = outer_template.substitute(root=root_category,
+                                         max_depth=max_depth,
+                                         today=str(datetime.now()),
+                                         versions=versions,
+                                         order=order)
         outfile.write(html)
 
     datafile = os.path.join(path, 'data.json')
@@ -132,7 +136,8 @@ def save_index(path, version_images, root_category, max_depth):
             'version_images': version_images,
             'max_depth': max_depth,
             'generated': str(datetime.now()),
-            'root': root_category
+            'root': root_category,
+            'order': order
         }
 
         import json
@@ -212,7 +217,7 @@ class IterationTracker(object):
         :param image:
         :return:
         """
-        fname = os.path.join(version_path, "%s.png" % iteration_name)
+        fname = os.path.join(version_path, "%s_by_%s.png" % (iteration_name, self.order))
         full_path = os.path.join(output_dir, fname)
         with open(full_path, 'wb') as outfile:
             image.save(outfile)
@@ -262,7 +267,7 @@ class IterationTracker(object):
     def collect(self):
         return self.version_images
 
-def bfs_pics(root_name, depth, output_dir, db, order, version_list=[]):
+def bfs_pics(root_name, depth, output_dir, db, version_list=[]):
     models.database_proxy.initialize(db)
 
     root = Category.select().where(Category.name==root_name).first()
@@ -272,6 +277,7 @@ def bfs_pics(root_name, depth, output_dir, db, order, version_list=[]):
         versions = versions.where(DataSetVersion.version << version_list)
 
     version_images = []
+    version_images_added = []
     for version in versions:
         print "Generating images for version %s..." % version.version
         sys.stdout.flush()
@@ -293,12 +299,15 @@ def bfs_pics(root_name, depth, output_dir, db, order, version_list=[]):
         # get the bfs iterator
         descendants = bfs.descendants(root, norepeats=True, max_levels=depth, version=version)
 
-        tracker = IterationTracker(output_dir, version_path, order)
 
-        with tracker:
+        tracker = IterationTracker(output_dir, version_path, order='id')
+        tracker_added = IterationTracker(output_dir, version_path, order='added')
+
+        with tracker, tracker_added:
             for cat in descendants:
                 depth = descendants.current_level
                 tracker.traverse_category(cat, depth)
+                tracker_added.traverse_category(cat, depth)
 
         version_images.append({
             'version': {
@@ -309,7 +318,17 @@ def bfs_pics(root_name, depth, output_dir, db, order, version_list=[]):
             'frames': tracker.collect()
         })
 
-    save_index(output_dir, version_images, root_name, depth)
+        version_images_added.append({
+            'version': {
+                'id': version.id,
+                'version': version.version,
+                'date': str(version.date)
+            },
+            'frames': tracker_added.collect()
+        })
+
+    save_index(output_dir, version_images, root_name, depth, order='id')
+    save_index(output_dir, version_images_added, root_name, depth, order='added')
 
 def slugify(value):
     """
@@ -350,11 +369,6 @@ if __name__ == "__main__":
                         required=False,
                         help="Category depth to explore from root category")
 
-    parser.add_argument("--order",
-                        default='id',
-                        choices=['id', 'added'],
-                        required=False,
-                        help="Sort order for pixels")
     args = parser.parse_args()
 
     if args.verbose:
@@ -389,5 +403,4 @@ if __name__ == "__main__":
              depth=args.depth,
              output_dir=output,
              db=db,
-             order=args.order,
              version_list=args.versions)
