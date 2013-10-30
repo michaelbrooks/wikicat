@@ -9,9 +9,7 @@ nodes are a third color.
 
 import logging
 import os, sys
-import math
 from datetime import datetime
-from PIL import Image, ImageDraw
 from string import Template
 
 import common
@@ -21,6 +19,8 @@ from catdb import mysql
 from catdb.mysql import DEFAULT_PASSWORD
 from catdb import bfs
 from dbpedia import resource
+from output.bitmap import BitMap
+
 
 def save_index(path, version_images, root_category, max_depth, order='id'):
     """
@@ -156,37 +156,9 @@ class IterationTracker(object):
         self.current_depth = 0
         self.frontier = []
         self.prev_frontier = []
-        self.image = self.create_image()
         self.version_images = []
-
-    def create_image(self):
-        """
-        Generates a manipulable in-memory image resource.
-        :return:
-        """
-        # how many categories?
         total = Category.select().count()
-        aspect_ratio = float(4) / 3
-        width = int(math.sqrt(aspect_ratio * total))
-        height = int(width / aspect_ratio)
-
-        img = Image.new("RGB", (width, height))
-        return img
-
-    def map_category(self, category, image):
-        """
-        Maps the category to a pixel in the image.
-
-        :param category:
-        :param image:
-        :return:
-        """
-        width = image.size[0]
-
-        row = math.floor(category / width)
-        col = category % width
-
-        return col, row
+        self.bitmap = BitMap(total)
 
     def update_image(self):
         """
@@ -198,19 +170,18 @@ class IterationTracker(object):
         :return:
         """
 
-        draw = ImageDraw.Draw(self.image)
         interior_color = (162, 99, 47)
         frontier_color = (102, 255, 0)
 
         # mark the old categories
         if len(self.prev_frontier):
-            draw.point([self.map_category(cat, self.image) for cat in self.prev_frontier], interior_color)
+            self.bitmap.color_numbers(self.prev_frontier, interior_color)
 
         # mark the new categories
         if len(self.frontier):
-            draw.point([self.map_category(cat, self.image) for cat in self.frontier], frontier_color)
+            self.bitmap.color_numbers(self.frontier, frontier_color)
 
-    def save_image(self, output_dir, version_path, iteration_name, image):
+    def save_image(self, output_dir, version_path, iteration_name):
         """
         Saves the image into the specified path, obviously.
         :param path:
@@ -220,16 +191,14 @@ class IterationTracker(object):
         """
         fname = os.path.join(version_path, "%s_by_%s.png" % (iteration_name, self.order))
         full_path = os.path.join(output_dir, fname)
-        with open(full_path, 'wb') as outfile:
-            image.save(outfile)
-
+        self.bitmap.save(full_path)
         return fname
 
     def record_depth(self):
         self.total_traversed += len(self.frontier)
         self.update_image()
         fname = self.save_image(self.output_dir, self.version_path,
-                           self.current_depth, self.image)
+                           self.current_depth)
 
         self.version_images.append({
             'img': fname,
