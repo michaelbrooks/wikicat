@@ -54,19 +54,17 @@ class BFSIterator(object):
             else:
                 self.queue.extend([(n, level + 1) for n in nextLevel])
 
-        self.processed.append((curr, level))
+        if curr:
+            self.current_level = level
+            return curr
 
     def next(self):
-        self.iterPointer += 1
 
-        if self.iterPointer >= len(self.processed):
-            self._traverse()
+        node = self._traverse()
 
-        if self.iterPointer >= len(self.processed):
+        if node is None:
             raise StopIteration
 
-        node, level = self.processed[self.iterPointer]
-        self.current_level = level
         return node
 
 class BFSLinkIterator(BFSIterator):
@@ -85,6 +83,45 @@ class BFSLinkIterator(BFSIterator):
 
         return node.get_category_categories(direction=self.direction, version=self.version)
 
+class BFSLevelIterator(BFSIterator):
+    """
+    Here the queue only ever contains one item, but that item is the entire current level.
+    """
+    def _init_queue(self, root):
+        self.queue = deque([([root], 0)]) # the entire first level as an array is the root
+
+    def _get_next_level(self, current):
+        if self.direction == 'down':
+            return Category.get_all_children(current, version=self.version)
+        elif self.direction == 'up':
+            return Category.get_all_parents(current, version=self.version)
+        else:
+            raise Exception("Unknown direction %s" % self.direction)
+
+    def _traverse(self):
+
+        if not len(self.queue):
+            return
+
+        curr, level = self.queue.popleft()
+
+        if self.max_levels is None or level < self.max_levels:
+            nextLevel = self._get_next_level(curr)
+
+            if self.norepeats:
+                newNodes = []
+                for node in nextLevel:
+                    if node.id not in self.checked:
+                        self.checked.add(node.id)
+                        newNodes.append(node)
+                nextLevel = newNodes
+
+            if len(nextLevel) > 0:
+                self.queue.append((nextLevel, level + 1))
+
+        if curr:
+            self.current_level = level
+            return curr
 
 def descendants(rootCategory, norepeats=False, max_levels=None, version=None):
     return BFSIterator(rootCategory,
@@ -95,6 +132,16 @@ def ancestors(rootCategory, norepeats=False, max_levels=None, version=None):
     return BFSIterator(rootCategory,
                        direction='up', norepeats=norepeats,
                        max_levels=max_levels, version=version)
+
+def descendant_levels(rootCategory, norepeats=False, max_levels=None, version=None):
+    return BFSLevelIterator(rootCategory,
+                            direction='down', norepeats=norepeats,
+                            max_levels=max_levels, version=version)
+
+def ancestor_levels(rootCategory, norepeats=False, max_levels=None, version=None):
+    return BFSLevelIterator(rootCategory,
+                            direction='up', norepeats=norepeats,
+                            max_levels=max_levels, version=version)
 
 def descendant_links(rootCategory, norepeats=False, max_levels=None, version=None):
     return BFSLinkIterator(rootCategory,

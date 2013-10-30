@@ -298,17 +298,18 @@ def bfs_pics(root_name, depth, output_dir, db, version_list=[]):
                 raise
 
         # get the bfs iterator
-        descendants = bfs.descendants(root, norepeats=True, max_levels=depth, version=version)
+        descendants = bfs.descendant_levels(root, norepeats=True, max_levels=depth, version=version)
 
 
         tracker = IterationTracker(output_dir, version_path, order='id')
         tracker_added = IterationTracker(output_dir, version_path, order='added')
 
         with tracker, tracker_added:
-            for cat in descendants:
-                depth = descendants.current_level
-                tracker.traverse_category(cat, depth)
-                tracker_added.traverse_category(cat, depth)
+            for level in descendants:
+                for cat in level:
+                    depth = descendants.current_level
+                    tracker.traverse_category(cat, depth)
+                    tracker_added.traverse_category(cat, depth)
 
         version_images.append({
             'version': {
@@ -400,8 +401,11 @@ if __name__ == "__main__":
     else:
         output = args.output
 
-    bfs_pics(root_name=args.root_category,
-             depth=args.depth,
-             output_dir=output,
-             db=db,
-             version_list=args.versions)
+    with common.timer:
+        bfs_pics(root_name=args.root_category,
+                 depth=args.depth,
+                 output_dir=output,
+                 db=db,
+                 version_list=args.versions)
+
+    print 'Exported complete (%fs)' % common.timer.elapsed()

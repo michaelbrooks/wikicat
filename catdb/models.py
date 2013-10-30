@@ -126,6 +126,18 @@ class Category(BaseModel):
 
         return q
 
+    @classmethod
+    def get_all_parents(cls, categories, version=None):
+        q = Category.select() \
+            .join(CategoryCategory, on=CategoryCategory.broader) \
+            .where(CategoryCategory.narrower << categories)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
+
     def get_children(self, version=None):
         q = Category.select() \
             .join(CategoryCategory, on=CategoryCategory.narrower) \
@@ -135,6 +147,18 @@ class Category(BaseModel):
             q = q.where(CategoryCategory.version == version)
 
         return q
+
+    @classmethod
+    def get_all_children(cls, categories, version=None):
+        q = Category.select() \
+            .join(CategoryCategory, on=CategoryCategory.narrower) \
+            .where(CategoryCategory.broader << categories)
+
+        if version:
+            q = q.where(CategoryCategory.version == version)
+
+        return q
+
 
     def get_articles(self, version=None):
         q = Article.select() \
