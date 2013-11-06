@@ -301,16 +301,6 @@ def bfs_pics(root_name, depth, output_dir, db, version_list=[]):
     save_index(output_dir, version_images, root, depth, order='id')
     save_index(output_dir, version_images_added, root, depth, order='added')
 
-def slugify(value):
-    """
-    Normalizes string, converts to lowercase, removes non-alpha characters,
-    and converts spaces to hyphens.
-    """
-    import unicodedata, re
-    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
-    value = unicode(re.sub('[^:\w\s-]', '', value).strip().lower())
-    return re.sub('[-:\s]+', '-', value)
-
 if __name__ == "__main__":
     import argparse
 
@@ -365,7 +355,7 @@ if __name__ == "__main__":
         models.use_confirmations(False)
 
     if args.output is None:
-        output = slugify(unicode(args.root_category))
+        output = common.slugify(unicode(args.root_category))
         print "Saving to %s" % output
     else:
         output = args.output
