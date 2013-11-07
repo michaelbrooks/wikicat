@@ -37,13 +37,14 @@ def subtree(root_name, depth, output_filename, db, version_list=[]):
 
             for cat in descendants:
                 depth = descendants.current_level
+
                 writer.writerow({
-                    'version_id': version.id,
+                    'version_id': str(version.id),
                     'version_version': version.version,
                     'version_date': version.date,
-                    'depth': depth,
-                    'category_id': cat.id,
-                    'category_name': cat.name
+                    'depth': str(depth),
+                    'category_id': str(cat.id),
+                    'category_name': cat.name.encode('utf-8')
                 })
 
 if __name__ == "__main__":
