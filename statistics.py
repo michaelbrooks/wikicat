@@ -25,8 +25,6 @@ def calculate_stats(iterations, db, reset=False):
 
     models.create_table(CategoryStats, drop_if_exists=False, set_engine='InnoDB')
 
-    versions = DataSetVersion.select()
-
     # make sure there is a stats entry for every category, for every version
     missing_cats = """
     SELECT COUNT(*)
@@ -63,6 +61,7 @@ def calculate_stats(iterations, db, reset=False):
 
     set_immediate_articles(db)
     set_immediate_subcategories(db)
+    set_immediate_supercategories(db)
     set_baseline_stats(db)
 
     calculate_totals(db, iterations)
@@ -158,6 +157,46 @@ def set_immediate_subcategories(db):
     WHERE cs.subcategories IS NULL;
     """
     log.info('Zeroing unmatched subcategories counts')
+    with timer:
+        cursor = db.execute_sql(ensure_zeros)
+        db.commit()
+    log.info('Updated %d entries (%fs)', cursor.rowcount, timer.elapsed())
+
+def set_immediate_supercategories(db):
+    """
+    Get the number of immediate subcategories
+    :param db:
+    :return:
+    """
+
+    # Calculate every category's immediate supercategory counts
+    update_immediate_supercategories = """
+    UPDATE category_stats cs
+    JOIN (
+        SELECT cc.version_id, cc.narrower_id, COUNT(*) as category_count
+        FROM category_categories cc
+        -- skip self-referencing category_categories
+        WHERE cc.narrower_id != cc.broader_id
+        GROUP BY cc.version_id, cc.narrower_id
+    ) super
+        ON super.narrower_id = cs.category_id
+        AND super.version_id = cs.version_id
+    SET cs.supercategories = super.category_count;
+    """
+
+    log.info('Initializing supercategory counts')
+    with timer:
+        cursor = db.execute_sql(update_immediate_supercategories)
+        db.commit()
+    log.info('Updated %d entries (%fs)', cursor.rowcount, timer.elapsed())
+
+    # make sure any remaining values are set to 0
+    ensure_zeros = """
+    UPDATE category_stats cs
+    SET cs.supercategories = 0
+    WHERE cs.supercategories IS NULL;
+    """
+    log.info('Zeroing unmatched supercategories counts')
     with timer:
         cursor = db.execute_sql(ensure_zeros)
         db.commit()

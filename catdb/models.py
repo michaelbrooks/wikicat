@@ -235,6 +235,7 @@ class CategoryStats(VersionedModel):
     category = ForeignKeyField(Category, related_name="stats")
 
     subcategories = IntegerField(null=True, default=None)
+    supercategories = IntegerField(null=True, default=None)
     articles = IntegerField(null=True, default=None)
 
     total_categories = IntegerField(null=True, default=None)
