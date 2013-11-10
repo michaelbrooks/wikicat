@@ -1,0 +1,77 @@
+body {
+  padding: 25px;
+}
+.walker .id {
+  color: #bbb;
+}
+.walker .id:before {
+  content: 'id:';
+}
+.walker .logo {
+  color: #888;
+  text-decoration: none;
+}
+.walker .versions > div {
+  border: 1px solid gray;
+  margin: 15px 0;
+  padding: 10px;
+}
+.walker .versions > div .header {
+  font-size: 24px;
+  line-height: 28px;
+  color: #666;
+}
+.walker .versions > div .glyph {
+  height: 300px;
+  position: relative;
+}
+.walker .versions > div .glyph .loading {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  background: white;
+  text-align: center;
+  font-size: 18px;
+  color: #aaa;
+  padding-top: 130px;
+}
+.walker .versions > div .glyph .supercategories {
+  float: left;
+  width: 25%;
+}
+.walker .versions > div .glyph .articles {
+  float: left;
+  width: 50%;
+}
+.walker .versions > div .glyph .subcategories {
+  float: left;
+  width: 25%;
+}
+.walker.search .search-form {
+  margin: 25px 0;
+  width: 100%;
+}
+.walker.search .results .status {
+  position: relative;
+  height: 24px;
+  font-size: 18px;
+  line-height: 18px;
+  color: #666;
+}
+.walker.search .results .status > div {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.walker.search .results .status .search-string:before,
+.walker.search .results .status .search-string:after {
+  content: '"';
+}
+.walker.search .results .articles {
+  float: left;
+  width: 40%;
+}
+.walker.search .results .categories {
+  float: left;
+  width: 60%;
+}
