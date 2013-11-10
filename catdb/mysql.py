@@ -16,7 +16,7 @@ DEFAULT_PORT = 3306
 
 def connect(database, user=DEFAULT_USER, host=DEFAULT_HOST, password=DEFAULT_PASSWORD, port=DEFAULT_PORT):
     log.info("Connecting to '%s' on %s@%s:%d", database, user, host, port)
-    db = peewee.MySQLDatabase(database,
+    db = peewee.MySQLDatabase(database, threadlocals=True,
                               user=user, host=host, passwd=password, port=port,
                               autocommit=False)
     # autocommit set to false for performance in bulk insert statements

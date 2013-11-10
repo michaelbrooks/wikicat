@@ -116,6 +116,18 @@ class Category(BaseModel):
     id = PrimaryKeyField()
     name = CharField(index=True, max_length=CATEGORY_MAX_LENGTH)
 
+    @classmethod
+    def long_name(cls, name):
+        if not name.startswith('Category:'):
+            name = "Category:%s" % name
+        return name
+
+    @classmethod
+    def short_name(cls, name):
+        if name.startswith('Category:'):
+            name = name[9:]
+        return name
+
     def get_parents(self, version=None):
         q = Category.select() \
             .join(CategoryCategory, on=CategoryCategory.broader) \
@@ -158,7 +170,6 @@ class Category(BaseModel):
             q = q.where(CategoryCategory.version == version)
 
         return q
-
 
     def get_articles(self, version=None):
         q = Article.select() \

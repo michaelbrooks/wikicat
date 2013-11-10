@@ -1,0 +1,58 @@
+$def with (form, search="")
+$var css: walker.css
+$var js: search.js
+$var title: Search Categories and Articles
+<div class="walker search">
+
+    <button id='id-toggle-button' class="btn pull-right" data-toggle="button">Show IDs</button>
+
+    <h1 class="title">
+        <a href="/walker" class="logo">WikiWalker</a>
+        Search for Categories and Articles
+    </h1>
+
+    <form name="search" method="post" role="form" class="form-inline search-form" data-search="$search">
+        <div class="form-group">
+            $:form.search.render()
+        </div>
+        $:form.submit.render()
+    </form>
+
+    <div class="results">
+        <div class="status">
+            <div class="loading-message fade">Loading results...</div>
+            <div class="confirm-message fade">Up to 100 results for <span class="search-string"></span>:</div>
+        </div>
+
+        <div class="categories fade">
+            <h3>Categories (<span class="count"></span> results)</h3>
+            <table class="table">
+                <thead><tr><th>Category</th><th>Articles</th><th>Sub-Categories</th><th>Super-Categories</th><th>Versions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <script type="text/template" class="row-template">
+                <tr>
+                    <td><a href="<%=url%>"><%=short_name%> <span class="id hidden"><%=id%></span></a></td>
+                    <td><%=articles%></td>
+                    <td><%=subcategories%></td>
+                    <td><%=supercategories%></td>
+                    <td><%=versions%></td>
+                </tr>
+            </script>
+        </div>
+        <div class="articles fade">
+            <h3>Articles (<span class="count"></span> results)</h3>
+            <table class="table">
+                <thead><tr><th>Article</th><th>Versions</th><th>Categories</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <script type="text/template" class="row-template">
+                <tr>
+                    <td><a href="<%=url%>"><%=name%> <span class="id hidden"><%=id%></span></a></td>
+                    <td><%=versions%></td>
+                    <td><%=categories%></td>
+                </tr>
+            </script>
+        </div>
+    </div>
+</div>

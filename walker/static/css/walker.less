@@ -1,0 +1,102 @@
+body {
+    padding: 25px;
+}
+
+.walker {
+    .id {
+        color: #bbb;
+        &:before {
+            content: 'id:';
+        }
+    }
+
+    .logo {
+        color: #888;
+        text-decoration: none;
+    }
+
+    .versions {
+        > div {
+
+            border: 1px solid gray;
+            margin: 15px 0;
+            padding: 10px;
+
+            .header {
+                font-size: 24px;
+                line-height: 28px;
+                color: #666;
+            }
+
+            .glyph {
+                height: 300px;
+                position: relative;
+
+                .loading {
+                    height: 100%;
+                    width: 100%;
+                    position: absolute;
+                    background: white;
+                    text-align: center;
+                    font-size: 18px;
+                    color: #aaa;
+                    padding-top: 130px;
+                }
+
+                .supercategories {
+                    float: left;
+                    width: 25%;
+                }
+                .articles {
+                    float: left;
+                    width: 50%;
+                }
+                .subcategories {
+                    float: left;
+                    width: 25%;
+                }
+            }
+        }
+    }
+
+    &.search {
+        .search-form {
+            margin: 25px 0;
+            width: 100%;
+        }
+
+        .results {
+            .status {
+                position: relative;
+                height: 24px;
+                font-size: 18px;
+                line-height: 18px;
+                color: #666;
+
+                > div {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+
+                }
+
+                .search-string {
+                    &:before,
+                    &:after {
+                        content: '"';
+                    }
+                }
+            }
+
+            .articles {
+                float: left;
+                width: 40%;
+            }
+
+            .categories {
+                float: left;
+                width: 60%;
+            }
+        }
+    }
+}

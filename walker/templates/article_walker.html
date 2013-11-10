@@ -1,0 +1,38 @@
+$def with (article, versions)
+$var css: walker.css
+$var js: article_walker.js
+$var title: ${'Article %s' % article.name}
+<div class="article walker" data-article="$article.id">
+
+    <button id='id-toggle-button' class="btn pull-right" data-toggle="button">Show IDs</button>
+    <h1 class="title">
+        <a href="/walker" class="logo">WikiWalker</a>
+        $article.name
+        <span class="id hidden">$article.id</span>
+    </h1>
+
+    <div class="versions">
+
+        $for version in versions:
+        <div data-version="$version.id">
+            <div class="header">
+                v$version.version -
+                $version.date.strftime('%x')
+                <span class="muted id hidden">$version.id</span>
+            </div>
+            <div class="glyph clearfix">
+                <div class="loading fade in">Loading...</div>
+                <div class="supercategories">
+                    <label>Up</label>
+                </div>
+                <div class="articles">
+                    <label>$article.name</label>
+                </div>
+                <div class="subcategories">
+                    <label>Down</label>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>

@@ -43,3 +43,7 @@ venv
 
 # Temporary files
 .dbpedia_cache
+
+*.css
+*.log
+node_modules
