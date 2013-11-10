@@ -5,6 +5,7 @@
       <module fileurl="file://$PROJECT_DIR$/catdb/catdb.iml" filepath="$PROJECT_DIR$/catdb/catdb.iml" />
       <module fileurl="file://$PROJECT_DIR$/dbpedia/dbpedia.iml" filepath="$PROJECT_DIR$/dbpedia/dbpedia.iml" />
       <module fileurl="file://$PROJECT_DIR$/output/output.iml" filepath="$PROJECT_DIR$/output/output.iml" />
+      <module fileurl="file://$PROJECT_DIR$/walker/walker.iml" filepath="$PROJECT_DIR$/walker/walker.iml" />
       <module fileurl="file://$PROJECT_DIR$/wikicat.iml" filepath="$PROJECT_DIR$/wikicat.iml" />
     </modules>
   </component>

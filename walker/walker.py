@@ -1,47 +1,14 @@
 import web
-import os
 import json
 from web import form
 
-from catdb import mysql
-from catdb import models
-from catdb.models import CategoryStats, Category, CategoryCategory, Article, DataSetVersion, ArticleCategory
+from catdb.models import BaseModel, CategoryStats, Category, CategoryCategory, Article, DataSetVersion, ArticleCategory
 from peewee import fn
-
-mydir = os.path.dirname(__file__)
-
-render = web.template.render(os.path.join(mydir, 'templates'), base='page')
-#web.config.static_path = os.path.join(mydir, 'static')
-
-from web.httpserver import StaticApp
-
-def translate_path(self, path):
-    return mydir + path
-
-StaticApp.translate_path = translate_path
-
-def load_sql(handler):
-    web.ctx.orm = mysql.connect(database="wikicat")
-    web.ctx.models = models
-    models.database_proxy.initialize(web.ctx.orm)
-    try:
-        return handler()
-    except web.HTTPError:
-        web.ctx.orm.commit()
-        raise
-    except:
-        web.ctx.orm.rollback()
-        raise
-    finally:
-        web.ctx.orm.commit()
-        # If the above alone doesn't work, uncomment
-        # the following line:
-        #web.ctx.orm.expunge_all()
 
 def jsonhandler(obj):
     if hasattr(obj, 'isoformat'):
         return obj.isoformat()
-    elif isinstance(obj, models.BaseModel):
+    elif isinstance(obj, BaseModel):
         return obj._data
     else:
         raise TypeError, 'Object of type %s with value of %s is not JSON serializable' % (type(obj), repr(obj))
@@ -54,8 +21,10 @@ def category_url(name):
 def article_url(name):
     return "/walker/article/%s" % name
 
+class base_controller(object):
+    render = None
 
-class article_api:
+class article_api(base_controller):
     def GET(self, version_id, article_id):
         version = DataSetVersion.select() \
             .where(DataSetVersion.id == version_id) \
@@ -113,7 +82,7 @@ def process_articles(articles):
     for art in articles:
         art['url'] = article_url(art['name'])
 
-class category_api:
+class category_api(base_controller):
     def GET(self, version_id, category_id):
         version = DataSetVersion.select() \
             .where(DataSetVersion.id == version_id) \
@@ -169,7 +138,7 @@ class category_api:
         return json.dumps(response, default=jsonhandler)
 
 
-class category:
+class category(base_controller):
     def GET(self, category_name):
         category_name = Category.long_name(category_name)
 
@@ -181,11 +150,11 @@ class category:
         versions = DataSetVersion.select() \
             .order_by(DataSetVersion.date)
 
-        return render.category_walker(category=category,
+        return self.render.category_walker(category=category,
                                       versions=versions)
 
 
-class article:
+class article(base_controller):
     def GET(self, article_name):
         article = Article.select().where(Article.name == article_name) \
             .first()
@@ -193,7 +162,7 @@ class article:
         versions = DataSetVersion.select() \
             .order_by(DataSetVersion.date)
 
-        return render.article_walker(article=article,
+        return self.render.article_walker(article=article,
                                      versions=versions)
 
 
@@ -214,7 +183,7 @@ search_form = form.Form(
 )
 
 
-class index:
+class index(base_controller):
     def GET(self):
         form = search_form()
 
@@ -225,7 +194,7 @@ class index:
             search = input.q
             form.search.value = search
 
-        return render.search(form=form, search=search)
+        return self.render.search(form=form, search=search)
 
     def POST(self):
         form = search_form()
@@ -281,7 +250,7 @@ urls = (
     '/walker', index
 )
 
-if __name__ == "__main__":
-    app = web.application(urls)
-    app.add_processor(load_sql)
-    app.run()
+
+def configure_templates(base_dir):
+    import os
+    base_controller.render = web.template.render(os.path.join(base_dir, 'templates'), base='page')
