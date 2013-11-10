@@ -6,8 +6,8 @@ if [ $# -lt 2 ]; then
 fi
 
 HOSTNAME="127.0.0.1"
-USERNAME=$2
-DATABASE=$3
+USERNAME=$1
+DATABASE=$2
 
 COMMAND="walker 8080 \
     -H $HOSTNAME \
