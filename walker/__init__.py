@@ -18,8 +18,11 @@ StaticApp.translate_path = translate_path
 def run(database, user, host, port, password):
     def load_sql(handler):
         web.ctx.orm = mysql.connect(database=database,
-                                    user=user, host=hostname,
+                                    user=user, host=host,
                                     port=port, password=password)
+        if not web.ctx.orm:
+            raise Exception("Could not connect to database")
+
         web.ctx.models = models
         models.database_proxy.initialize(web.ctx.orm)
         try:
